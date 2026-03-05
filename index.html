@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOLIO — Portfolio Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #060a14;
+  --surface:  #0c1120;
+  --card:     rgba(255,255,255,0.035);
+  --card-h:   rgba(255,255,255,0.06);
+  --border:   rgba(255,255,255,0.07);
+  --border-a: rgba(20,240,168,0.25);
+  --accent:   #14f0a8;
+  --a-dim:    rgba(20,240,168,0.1);
+  --gain:     #14f0a8;
+  --gain-dim: rgba(20,240,168,0.12);
+  --loss:     #f0486e;
+  --loss-dim: rgba(240,72,110,0.12);
+  --text:     #e8edf8;
+  --muted:    #5a6680;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Space Grotesk', sans-serif;
+  --r:        14px;
+  --r-sm:     8px;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body {
+  background: var(--bg);
+  background-image: radial-gradient(ellipse 90% 40% at 50% -10%, rgba(20,240,168,0.06) 0%, transparent 60%);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* ── LAYOUT ── */
+.app { max-width:1440px; margin:0 auto; padding:0 32px 80px; }
+
+/* ── HEADER ── */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:26px 0 32px; gap:20px;
+}
+.logo { font-size:18px; font-weight:700; letter-spacing:-0.04em; }
+.logo em { color:var(--accent); font-style:normal; }
+.nav {
+  display:flex; background:var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:4px; gap:2px;
+}
+.nav-btn {
+  padding:8px 22px; border:none; background:transparent; color:var(--muted);
+  font-family:var(--sans); font-size:14px; font-weight:500;
+  border-radius:8px; cursor:pointer; transition:all .18s;
+}
+.nav-btn:hover { color:var(--text); }
+.nav-btn.active { background:var(--accent); color:#060a14; }
+.hdr-right { display:flex; align-items:center; gap:10px; }
+.upd { font-size:11px; color:var(--muted); font-family:var(--mono); }
+
+/* ── BUTTONS ── */
+.btn {
+  padding:9px 16px; border-radius:var(--r-sm); font-family:var(--sans);
+  font-size:13px; font-weight:500; cursor:pointer; transition:all .18s;
+  border:1px solid var(--border); background:var(--card); color:var(--muted);
+}
+.btn:hover { border-color:var(--accent); color:var(--accent); }
+.btn-primary { background:var(--accent); border-color:var(--accent); color:#060a14; }
+.btn-primary:hover { background:#0fd899; }
+
+/* ── TABS ── */
+.tab { display:none; }
+.tab.active { display:block; }
+
+/* ── CARDS ── */
+.card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); padding:24px;
+}
+
+/* ── STAT ROW ── */
+.stats-row {
+  display:grid; grid-template-columns:2fr 1fr 1fr 1fr;
+  gap:14px; margin-bottom:16px;
+}
+.stat-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); padding:22px 24px;
+}
+.stat-card.main {
+  border-color:var(--border-a);
+  background:linear-gradient(135deg, rgba(20,240,168,0.05) 0%, transparent 50%);
+}
+.stat-lbl {
+  font-size:11px; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.07em; font-weight:500; margin-bottom:8px;
+}
+.stat-val {
+  font-family:var(--mono); font-size:26px; font-weight:600;
+  letter-spacing:-.02em; line-height:1; margin-bottom:5px;
+}
+.stat-card:not(.main) .stat-val { font-size:20px; }
+.stat-sub { font-family:var(--mono); font-size:12px; }
+
+/* ── CHARTS ROW ── */
+.charts-row { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:16px; }
+.chart-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+.chart-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
+.period-btns { display:flex; gap:2px; }
+.period-btn {
+  padding:5px 11px; border:1px solid var(--border); background:transparent;
+  color:var(--muted); font-family:var(--mono); font-size:11px;
+  border-radius:6px; cursor:pointer; transition:all .15s;
+}
+.period-btn.active, .period-btn:hover { border-color:var(--accent); color:var(--accent); }
+.chart-wrap { position:relative; height:240px; }
+.alloc-wrap { position:relative; height:210px; margin-top:10px; }
+
+/* ── HOLDINGS TABLE ── */
+.tbl-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.tbl-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
+table { width:100%; border-collapse:collapse; }
+thead th {
+  text-align:left; font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.07em; color:var(--muted); padding:0 14px 13px;
+  border-bottom:1px solid var(--border); cursor:pointer; user-select:none;
+  white-space:nowrap;
+}
+thead th:hover { color:var(--text); }
+thead th:first-child { padding-left:0; }
+thead th:last-child  { padding-right:0; }
+tbody td {
+  padding:13px 14px; border-bottom:1px solid rgba(255,255,255,0.04);
+  font-size:13px; vertical-align:middle;
+}
+tbody td:first-child { padding-left:0; }
+tbody td:last-child  { padding-right:0; }
+tbody tr { cursor:pointer; transition:background .15s; }
+tbody tr:hover { background:var(--card-h); }
+tbody tr:last-child td { border-bottom:none; }
+.sym-cell { display:flex; align-items:center; gap:11px; }
+.sym-badge {
+  width:34px; height:34px; border-radius:8px; display:flex;
+  align-items:center; justify-content:center; font-size:10px;
+  font-weight:700; flex-shrink:0;
+}
+.sym-info .sym  { font-weight:600; font-size:13px; }
+.sym-info .name { font-size:11px; color:var(--muted); max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mono { font-family:var(--mono); }
+.badge {
+  display:inline-flex; align-items:center; padding:3px 7px;
+  border-radius:5px; font-family:var(--mono); font-size:11px; font-weight:500;
+}
+.badge.gain { background:var(--gain-dim); color:var(--gain); }
+.badge.loss { background:var(--loss-dim); color:var(--loss); }
+.badge.neu  { background:rgba(90,102,128,.2); color:var(--muted); }
+.c-gain { color:var(--gain); }
+.c-loss { color:var(--loss); }
+.c-muted{ color:var(--muted); }
+
+/* ── CALCULATOR ── */
+.calc-layout { display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
+.calc-inputs { display:flex; flex-direction:column; gap:14px; }
+.inp-grp { display:flex; flex-direction:column; gap:5px; }
+.inp-grp label { font-size:11px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.inp-wrap { position:relative; }
+.inp-prefix { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted); font-family:var(--mono); font-size:13px; }
+.inp-wrap input {
+  width:100%; padding:10px 13px 10px 27px; background:var(--card);
+  border:1px solid var(--border); border-radius:var(--r-sm); color:var(--text);
+  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
+}
+.inp-wrap.no-pfx input { padding-left:13px; }
+.inp-wrap input:focus { border-color:var(--accent); }
+.toggle-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 13px; background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r-sm);
+}
+.toggle-row span { font-size:13px; }
+.toggle {
+  width:38px; height:21px; background:var(--border); border-radius:11px;
+  cursor:pointer; transition:background .2s; border:none; position:relative; flex-shrink:0;
+}
+.toggle.on { background:var(--accent); }
+.toggle::after {
+  content:''; position:absolute; width:15px; height:15px; background:#fff;
+  border-radius:50%; top:3px; left:3px; transition:transform .2s;
+}
+.toggle.on::after { transform:translateX(17px); }
+.calc-results {
+  background:var(--card); border:1px solid var(--border-a);
+  border-radius:var(--r); padding:22px 24px;
+}
+.result-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
+.result-item .rl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
+.result-item .rv { font-family:var(--mono); font-size:17px; font-weight:600; }
+.calc-chart-wrap { position:relative; height:260px; }
+
+/* ── MODALS ── */
+.overlay {
+  position:fixed; inset:0; background:rgba(6,10,20,.88); backdrop-filter:blur(8px);
+  z-index:100; display:flex; align-items:center; justify-content:center;
+  padding:24px; opacity:0; pointer-events:none; transition:opacity .2s;
+}
+.overlay.open { opacity:1; pointer-events:all; }
+.modal {
+  background:#0c1120; border:1px solid var(--border); border-radius:20px;
+  width:100%; max-width:680px; max-height:90vh; overflow-y:auto;
+  transform:translateY(10px); transition:transform .2s;
+}
+.overlay.open .modal { transform:translateY(0); }
+.modal.wide { max-width:780px; }
+.modal-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:22px 26px; border-bottom:1px solid var(--border);
+}
+.modal-hdr h2 { font-size:17px; font-weight:600; letter-spacing:-.02em; }
+.modal-close {
+  width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); font-size:17px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:all .15s;
+}
+.modal-close:hover { border-color:var(--loss); color:var(--loss); }
+.modal-body { padding:26px; }
+
+/* ── STOCK DETAIL ── */
+.stk-hdr { display:flex; align-items:flex-start; gap:16px; margin-bottom:22px; }
+.stk-icon {
+  width:48px; height:48px; border-radius:11px; display:flex; align-items:center;
+  justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;
+}
+.stk-name h2 { font-size:22px; font-weight:700; letter-spacing:-.03em; }
+.stk-name p  { font-size:13px; color:var(--muted); margin-top:2px; }
+.stk-price { margin-left:auto; text-align:right; }
+.stk-price .price { font-family:var(--mono); font-size:28px; font-weight:600; }
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+.metric {
+  background:rgba(255,255,255,0.03); border:1px solid var(--border);
+  border-radius:10px; padding:12px;
+}
+.metric .ml { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
+.metric .mv { font-family:var(--mono); font-size:14px; font-weight:500; }
+.position {
+  background:var(--a-dim); border:1px solid rgba(20,240,168,0.2);
+  border-radius:11px; padding:16px 18px; display:grid;
+  grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;
+}
+.pos-item .pl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); opacity:.7; margin-bottom:3px; }
+.pos-item .pv { font-family:var(--mono); font-size:14px; font-weight:500; }
+.div-list { display:flex; flex-direction:column; gap:6px; }
+.div-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:9px 12px; background:rgba(255,255,255,0.02); border-radius:7px; font-size:12px;
+}
+.div-row .dr { color:var(--muted); font-family:var(--mono); }
+.div-row .da { font-family:var(--mono); color:var(--gain); }
+
+/* ── SETTINGS ── */
+.set-section { margin-bottom:24px; }
+.set-section h3 { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
+.set-input {
+  width:100%; padding:10px 13px; background:rgba(255,255,255,0.04);
+  border:1px solid var(--border); border-radius:var(--r-sm); color:var(--text);
+  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
+}
+.set-input:focus { border-color:var(--accent); }
+.h-editor { display:flex; flex-direction:column; gap:7px; margin-bottom:10px; }
+.h-row { display:grid; grid-template-columns:90px 1fr 1fr 32px; gap:7px; align-items:center; }
+.h-row input {
+  width:100%; padding:8px 10px; background:rgba(255,255,255,0.04);
+  border:1px solid var(--border); border-radius:6px; color:var(--text);
+  font-family:var(--mono); font-size:12px; outline:none;
+}
+.h-row input:focus { border-color:var(--accent); }
+.h-row input::placeholder { color:var(--muted); }
+.rm-btn {
+  width:30px; height:30px; border-radius:6px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); cursor:pointer; font-size:15px;
+  display:flex; align-items:center; justify-content:center; transition:all .15s;
+}
+.rm-btn:hover { border-color:var(--loss); color:var(--loss); }
+.add-btn {
+  width:100%; padding:9px; border:1px dashed var(--border); background:transparent;
+  color:var(--muted); border-radius:var(--r-sm); cursor:pointer; font-family:var(--sans);
+  font-size:12px; transition:all .15s;
+}
+.add-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ── API PROMPT ── */
+.api-screen {
+  position:fixed; inset:0; background:var(--bg); display:flex;
+  align-items:center; justify-content:center; z-index:200; padding:24px;
+}
+.api-card {
+  background:var(--surface); border:1px solid var(--border-a); border-radius:20px;
+  padding:40px; max-width:460px; width:100%; text-align:center;
+}
+.api-card .icon { font-size:44px; margin-bottom:18px; }
+.api-card h2 { font-size:22px; font-weight:700; letter-spacing:-.03em; margin-bottom:8px; }
+.api-card p { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:22px; }
+
+/* ── SPINNER ── */
+.spinner-wrap { display:flex; align-items:center; justify-content:center; padding:50px; gap:10px; color:var(--muted); font-size:13px; }
+.spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── UTILS ── */
+.sep { border:none; border-top:1px solid var(--border); margin:18px 0; }
+.row-end { display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
+.mt-12 { margin-top:12px; }
+.mt-18 { margin-top:18px; }
+.sec-title { font-size:13px; font-weight:600; letter-spacing:-.01em; margin-bottom:12px; }
+</style>
+</head>
+<body>
+
+<!-- API Key Prompt -->
+<div class="api-screen" id="api-screen" style="display:none">
+  <div class="api-card">
+    <div class="icon">📈</div>
+    <h2>Welcome to FOLIO</h2>
+    <p>Enter your free API key from <a href="https://financialmodelingprep.com/developer/docs/" target="_blank">financialmodelingprep.com</a> to pull live quotes, historical prices, and dividend data. Free accounts get 250 requests/day.</p>
+    <div class="inp-wrap no-pfx" style="margin-bottom:12px">
+      <input type="text" id="prompt-key" placeholder="Paste your FMP API key…" class="set-input">
+    </div>
+    <button class="btn btn-primary" id="prompt-submit" style="width:100%">Get Started</button>
+  </div>
+</div>
+
+<!-- App Shell -->
+<div class="app">
+  <header>
+    <div class="logo">FOLIO<em>.</em></div>
+    <nav class="nav">
+      <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="nav-btn" data-tab="holdings">Holdings</button>
+      <button class="nav-btn" data-tab="calculator">Calculator</button>
+    </nav>
+    <div class="hdr-right">
+      <span class="upd" id="upd-time"></span>
+      <button class="btn" id="btn-refresh">↻ Refresh</button>
+      <button class="btn" id="btn-settings">⚙ Settings</button>
+    </div>
+  </header>
+
+  <!-- DASHBOARD -->
+  <div id="tab-dashboard" class="tab active">
+    <div class="stats-row">
+      <div class="stat-card main">
+        <div class="stat-lbl">Portfolio Value</div>
+        <div class="stat-val" id="s-total">—</div>
+        <div class="stat-sub" id="s-allgain">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Today's Gain</div>
+        <div class="stat-val" id="s-daygain">—</div>
+        <div class="stat-sub" id="s-daypct">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">All-Time Return</div>
+        <div class="stat-val" id="s-allpct">—</div>
+        <div class="stat-sub c-muted">since purchase</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-lbl">Cost Basis</div>
+        <div class="stat-val" id="s-cost">—</div>
+        <div class="stat-sub c-muted" id="s-count">— positions</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+      <div class="card">
+        <div class="chart-hdr">
+          <h3>Portfolio Value</h3>
+          <div class="period-btns">
+            <button class="period-btn active" data-p="1M">1M</button>
+            <button class="period-btn" data-p="3M">3M</button>
+            <button class="period-btn" data-p="6M">6M</button>
+            <button class="period-btn" data-p="1Y">1Y</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="c-portfolio"></canvas></div>
+      </div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:600;letter-spacing:-.02em">Allocation</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">by current value</div>
+        <div class="alloc-wrap"><canvas id="c-alloc"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOLDINGS -->
+  <div id="tab-holdings" class="tab">
+    <div class="card">
+      <div class="tbl-hdr">
+        <h3>Holdings</h3>
+        <button class="btn" id="btn-add-pos">+ Add Position</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th data-s="symbol">Symbol</th>
+            <th data-s="shares">Shares</th>
+            <th data-s="avgCost" style="text-align:right">Avg Cost</th>
+            <th data-s="price"   style="text-align:right">Price</th>
+            <th data-s="value"   style="text-align:right">Value</th>
+            <th data-s="day"     style="text-align:right">Day %</th>
+            <th data-s="ret"     style="text-align:right">Total Return</th>
+            <th data-s="div"     style="text-align:right">Div Yield</th>
+          </tr>
+        </thead>
+        <tbody id="holdings-body">
+          <tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CALCULATOR -->
+  <div id="tab-calculator" class="tab">
+    <div class="calc-layout">
+      <div class="calc-inputs card">
+        <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;margin-bottom:18px">Future Value Calculator</div>
+
+        <div class="inp-grp">
+          <label>Starting Value</label>
+          <div class="inp-wrap"><span class="inp-prefix">$</span>
+            <input type="number" id="c-start" value="100000" min="0">
+          </div>
+        </div>
+        <div class="inp-grp">
+          <label>Monthly Contribution</label>
+          <div class="inp-wrap"><span class="inp-prefix">$</span>
+            <input type="number" id="c-monthly" value="500" min="0">
+          </div>
+        </div>
+        <div class="inp-grp">
+          <label>Expected Annual Return</label>
+          <div class="inp-wrap"><span class="inp-prefix">%</span>
+            <input type="number" id="c-return" value="10" min="0" max="100" step="0.1">
+          </div>
+        </div>
+        <div class="inp-grp">
+          <label>Expected Dividend Yield</label>
+          <div class="inp-wrap"><span class="inp-prefix">%</span>
+            <input type="number" id="c-div" value="2" min="0" max="30" step="0.1">
+          </div>
+        </div>
+        <div class="inp-grp">
+          <label>Time Horizon (Years)</label>
+          <div class="inp-wrap no-pfx">
+            <input type="number" id="c-years" value="20" min="1" max="50">
+          </div>
+        </div>
+        <div class="inp-grp">
+          <label>Dividend Reinvestment</label>
+          <div class="toggle-row">
+            <span>Reinvest dividends (DRIP)</span>
+            <button class="toggle on" id="drip-toggle"></button>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-calc" style="width:100%">Calculate</button>
+      </div>
+
+      <div>
+        <div class="calc-results">
+          <div class="result-row">
+            <div class="result-item">
+              <div class="rl">Final Value</div>
+              <div class="rv c-gain" id="r-final">—</div>
+            </div>
+            <div class="result-item">
+              <div class="rl">Total Contributed</div>
+              <div class="rv" id="r-contrib">—</div>
+            </div>
+            <div class="result-item">
+              <div class="rl">Growth Returns</div>
+              <div class="rv c-gain" id="r-returns">—</div>
+            </div>
+            <div class="result-item">
+              <div class="rl">Dividends Earned</div>
+              <div class="rv c-gain" id="r-divs">—</div>
+            </div>
+          </div>
+          <div class="calc-chart-wrap"><canvas id="c-calc"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="overlay" id="ov-settings">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2>Settings</h2>
+      <button class="modal-close" data-close="ov-settings">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="set-section">
+        <h3>API Key</h3>
+        <input type="text" class="set-input" id="set-apikey" placeholder="Your FMP API key…">
+        <p style="font-size:11px;color:var(--muted);margin-top:6px">
+          Free key at <a href="https://financialmodelingprep.com/developer/docs/" target="_blank">financialmodelingprep.com</a> · 250 req/day
+        </p>
+      </div>
+      <div class="set-section">
+        <h3>Portfolio</h3>
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr 32px;gap:7px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px">
+          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Symbol</span>
+          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Shares</span>
+          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Avg Cost</span>
+          <span></span>
+        </div>
+        <div class="h-editor" id="h-editor"></div>
+        <button class="add-btn" id="add-holding">+ Add Position</button>
+      </div>
+      <div class="row-end">
+        <button class="btn" data-close="ov-settings">Cancel</button>
+        <button class="btn btn-primary" id="save-settings">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Detail Modal -->
+<div class="overlay" id="ov-stock">
+  <div class="modal wide">
+    <div class="modal-hdr">
+      <h2 id="stk-modal-title">—</h2>
+      <button class="modal-close" data-close="ov-stock">×</button>
+    </div>
+    <div class="modal-body" id="stk-modal-body">
+      <div class="spinner-wrap"><div class="spinner"></div>Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// FOLIO · Financial Modeling Prep API · Single-Page Portfolio App
+// ─────────────────────────────────────────────────────────────────
+
+const FMP = 'https://financialmodelingprep.com/api/v3';
+const CACHE_Q = 5 * 60 * 1000;       // quotes: 5 min
+const CACHE_H = 24 * 60 * 60 * 1000; // historical/profiles: 24h
+
+const COLORS = [
+  '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
+  '#5be8f0','#f0905b','#8af05b','#c05bf0','#f05b5b',
+  '#5bd4f0','#f0d65b','#5bf0c0','#e05bf0','#90f05b',
+  '#5b90f0','#f0a05b','#5bf080','#f07a5b','#a0c05b',
+];
+
+const DEFAULT = [
+  { symbol:'AAPL',  shares:10,  avgCost:150.00 },
+  { symbol:'MSFT',  shares:5,   avgCost:285.00 },
+  { symbol:'GOOGL', shares:3,   avgCost:140.00 },
+  { symbol:'AMZN',  shares:4,   avgCost:175.00 },
+  { symbol:'NVDA',  shares:8,   avgCost:450.00 },
+  { symbol:'JPM',   shares:10,  avgCost:170.00 },
+  { symbol:'V',     shares:12,  avgCost:240.00 },
+  { symbol:'JNJ',   shares:8,   avgCost:155.00 },
+  { symbol:'KO',    shares:15,  avgCost:58.00  },
+  { symbol:'O',     shares:20,  avgCost:55.00  },
+  { symbol:'T',     shares:30,  avgCost:19.00  },
+  { symbol:'SCHD',  shares:10,  avgCost:75.00  },
+  { symbol:'SPY',   shares:5,   avgCost:430.00 },
+  { symbol:'VZ',    shares:18,  avgCost:40.00  },
+  { symbol:'PG',    shares:7,   avgCost:140.00 },
+];
+
+// ── STATE ──────────────────────────────────────────────────────────
+const S = {
+  apiKey:    localStorage.getItem('folio_key') || '',
+  portfolio: JSON.parse(localStorage.getItem('folio_port') || 'null') || DEFAULT,
+  quotes:    {},
+  period:    '1M',
+  sortCol:   'value',
+  sortDir:   -1,
+  drip:      true,
+  charts:    { port: null, alloc: null, calc: null, stock: null },
+};
+
+// ── FORMAT ─────────────────────────────────────────────────────────
+const f = {
+  $: (n, d=2) => n == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d}).format(n),
+  pct: (n, d=2) => n == null ? '—' : `${n>=0?'+':''}${n.toFixed(d)}%`,
+  num: (n, d=0) => n == null ? '—' : n.toFixed(d),
+  compact: n => n == null ? '—' : new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(n),
+  date: s => new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+};
+const sign = n => n >= 0 ? 'gain' : 'loss';
+const $ = id => document.getElementById(id);
+
+// ── CACHE ──────────────────────────────────────────────────────────
+const Cache = {
+  set(k, d, ttl) { localStorage.setItem('folio_c_'+k, JSON.stringify({ d, exp: Date.now()+ttl })); },
+  get(k) {
+    try {
+      const c = JSON.parse(localStorage.getItem('folio_c_'+k));
+      if (c && Date.now() < c.exp) return c.d;
+    } catch {}
+    return null;
+  },
+};
+
+// ── API ────────────────────────────────────────────────────────────
+const API = {
+  async get(path, params={}) {
+    params.apikey = S.apiKey;
+    const qs = new URLSearchParams(params).toString();
+    const r = await fetch(`${FMP}${path}?${qs}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  },
+  async quotes(symbols) {
+    const k = 'q_' + symbols.join(',');
+    const c = Cache.get(k);
+    if (c) return c;
+    const d = await this.get(`/quote/${symbols.join(',')}`);
+    if (Array.isArray(d) && d.length) Cache.set(k, d, CACHE_Q);
+    return Array.isArray(d) ? d : [];
+  },
+  async historical(symbol, from) {
+    const k = `h_${symbol}_${from}`;
+    const c = Cache.get(k);
+    if (c) return c;
+    const d = await this.get(`/historical-price-full/${symbol}`, { from });
+    const prices = d?.historical || [];
+    if (prices.length) Cache.set(k, prices, CACHE_H);
+    return prices;
+  },
+  async dividends(symbol) {
+    const k = `div_${symbol}`;
+    const c = Cache.get(k);
+    if (c) return c;
+    const d = await this.get(`/historical-price-full/stock_dividend/${symbol}`);
+    const divs = d?.historical || [];
+    if (divs.length) Cache.set(k, divs, CACHE_H);
+    return divs;
+  },
+  async profile(symbol) {
+    const k = `pro_${symbol}`;
+    const c = Cache.get(k);
+    if (c) return c;
+    const d = await this.get(`/profile/${symbol}`);
+    const p = Array.isArray(d) ? d[0] : null;
+    if (p) Cache.set(k, p, CACHE_H);
+    return p;
+  },
+};
+
+// ── PORTFOLIO MATH ─────────────────────────────────────────────────
+const Port = {
+  value()   { return S.portfolio.reduce((s,h) => s + (S.quotes[h.symbol]?.price||0)*h.shares, 0); },
+  cost()    { return S.portfolio.reduce((s,h) => s + h.avgCost*h.shares, 0); },
+  dayGain() { return S.portfolio.reduce((s,h) => s + (S.quotes[h.symbol]?.change||0)*h.shares, 0); },
+  rows()    {
+    return S.portfolio.map((h,i) => {
+      const q   = S.quotes[h.symbol];
+      const px  = q?.price ?? null;
+      const val = px != null ? px*h.shares : null;
+      const cost= h.avgCost*h.shares;
+      const ret = val != null ? ((val-cost)/cost)*100 : null;
+      const day = q?.changesPercentage ?? null;
+      const div = q?.dividendYield ? q.dividendYield*100 : 0; // FMP gives raw decimal
+      return { ...h, px, val, cost, ret, day, div, name: q?.name||h.symbol, color: COLORS[i%COLORS.length] };
+    });
+  },
+};
+
+// ── CHART HELPERS ──────────────────────────────────────────────────
+Chart.defaults.color         = '#5a6680';
+Chart.defaults.borderColor   = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family   = "'JetBrains Mono',monospace";
+
+function lineColor(vals) {
+  return !vals.length || vals[vals.length-1] >= vals[0] ? '#14f0a8' : '#f0486e';
+}
+function lineGrad(ctx2, isGain) {
+  const g = ctx2.chart.ctx.createLinearGradient(0,0,0,240);
+  g.addColorStop(0, isGain ? 'rgba(20,240,168,.15)' : 'rgba(240,72,110,.15)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  return g;
+}
+const tooltipBase = {
+  backgroundColor: '#0c1120',
+  borderColor: 'rgba(255,255,255,0.1)',
+  borderWidth: 1,
+  padding: 10,
+};
+
+function buildPortChart(labels, vals) {
+  if (S.charts.port) S.charts.port.destroy();
+  const isGain = !vals.length || vals[vals.length-1] >= vals[0];
+  const col = isGain ? '#14f0a8' : '#f0486e';
+  S.charts.port = new Chart($('c-portfolio'), {
+    type:'line',
+    data:{ labels, datasets:[{ data:vals, borderColor:col, borderWidth:1.5, pointRadius:0, fill:true,
+      backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{display:false}, tooltip:{ ...tooltipBase,
+        callbacks:{ label: c => ` ${f.$(c.parsed.y)}` }
+      }},
+      scales:{
+        x:{ grid:{display:false}, ticks:{ maxTicksLimit:6, font:{size:10} }},
+        y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:10}, callback:v=>f.$(v,0) }},
+      }
+    }
+  });
+}
+
+function buildAllocChart(rows) {
+  if (S.charts.alloc) S.charts.alloc.destroy();
+  const data = [...rows].sort((a,b)=>(b.val||0)-(a.val||0));
+  S.charts.alloc = new Chart($('c-alloc'), {
+    type:'doughnut',
+    data:{ labels:data.map(d=>d.symbol),
+      datasets:[{ data:data.map(d=>d.val||0), backgroundColor:data.map(d=>d.color),
+        borderColor:'#060a14', borderWidth:2, hoverOffset:4 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins:{
+        legend:{ position:'bottom', labels:{ padding:10, boxWidth:9, boxHeight:9, font:{size:10}, color:'#5a6680' }},
+        tooltip:{ ...tooltipBase, callbacks:{ label:c=>{
+          const total = c.dataset.data.reduce((a,b)=>a+b,0);
+          return ` ${c.label}: ${f.$(c.raw)} (${f.num(c.raw/total*100,1)}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+function buildCalcChart(labels, contrib, portfolio, divs) {
+  if (S.charts.calc) S.charts.calc.destroy();
+  S.charts.calc = new Chart($('c-calc'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Portfolio', data:portfolio, borderColor:'#14f0a8', borderWidth:2, pointRadius:0, fill:true, backgroundColor:'rgba(20,240,168,.07)', tension:.4 },
+      { label:'Contributed', data:contrib, borderColor:'#5b8af0', borderWidth:1.5, pointRadius:0, fill:false, borderDash:[4,4], tension:.4 },
+      { label:'Dividends', data:divs, borderColor:'#f0c05b', borderWidth:1.5, pointRadius:0, fill:false, tension:.4 },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ position:'bottom', labels:{ padding:14, boxWidth:9, boxHeight:9, font:{size:10} }},
+        tooltip:{ ...tooltipBase, callbacks:{ label:c=>` ${c.dataset.label}: ${f.$(c.parsed.y,0)}` }},
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{ font:{size:10} }},
+        y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:10}, callback:v=>f.compact(v) }},
+      }
+    }
+  });
+}
+
+// ── RENDER DASHBOARD ───────────────────────────────────────────────
+function renderDash() {
+  const val    = Port.value();
+  const cost   = Port.cost();
+  const dayG   = Port.dayGain();
+  const allG   = val - cost;
+  const dayPct = val>0 ? dayG/(val-dayG)*100 : 0;
+  const allPct = cost>0 ? allG/cost*100 : 0;
+
+  const set = (id, txt, col) => {
+    const el = $(id); if (!el) return;
+    el.textContent = txt;
+    if (col) el.style.color = col;
+  };
+
+  const gainCol = g => g>=0 ? 'var(--gain)' : 'var(--loss)';
+  set('s-total',   f.$(val),           gainCol(allG));
+  set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`, gainCol(allG));
+  set('s-daygain', f.$(dayG),          gainCol(dayG));
+  set('s-daypct',  f.pct(dayPct)+' vs. yesterday', gainCol(dayG));
+  set('s-allpct',  f.pct(allPct),      gainCol(allG));
+  set('s-cost',    f.$(cost));
+  set('s-count',   `${S.portfolio.length} position${S.portfolio.length!==1?'s':''}`);
+
+  const lu = $('upd-time');
+  if (lu) lu.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+  buildAllocChart(Port.rows());
+}
+
+// ── RENDER HOLDINGS ────────────────────────────────────────────────
+function renderHoldings() {
+  const tbody = $('holdings-body');
+  if (!tbody) return;
+
+  let rows = Port.rows();
+  rows.sort((a,b) => {
+    const va = a[S.sortCol]??0, vb = b[S.sortCol]??0;
+    return typeof va==='string' ? va.localeCompare(vb)*S.sortDir : (va-vb)*S.sortDir;
+  });
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No positions. Add them in Settings.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(h => `
+    <tr data-sym="${h.symbol}">
+      <td>
+        <div class="sym-cell">
+          <div class="sym-badge" style="background:${h.color}1a;border:1px solid ${h.color}33;color:${h.color}">
+            ${h.symbol.slice(0,4)}
+          </div>
+          <div class="sym-info">
+            <div class="sym">${h.symbol}</div>
+            <div class="name">${h.name}</div>
+          </div>
+        </div>
+      </td>
+      <td class="mono">${f.num(h.shares, h.shares%1===0?0:4)}</td>
+      <td class="mono" style="text-align:right">${f.$(h.avgCost)}</td>
+      <td class="mono" style="text-align:right">${f.$(h.px)}</td>
+      <td class="mono" style="text-align:right">${f.$(h.val)}</td>
+      <td style="text-align:right">
+        <span class="badge ${h.day!=null?sign(h.day):'neu'}">${h.day!=null?f.pct(h.day):'—'}</span>
+      </td>
+      <td style="text-align:right">
+        <div class="mono ${h.ret!=null?'c-'+sign(h.ret):'c-muted'}">${h.ret!=null?f.pct(h.ret):'—'}</div>
+        <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val!=null?h.val-h.cost:null)}</div>
+      </td>
+      <td class="mono" style="text-align:right;color:${h.div>0?'var(--gain)':'var(--muted)'}">
+        ${h.div>0?f.pct(h.div):'—'}
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('tr[data-sym]').forEach(row =>
+    row.addEventListener('click', () => openStock(row.dataset.sym))
+  );
+}
+
+// ── PORTFOLIO CHART (HISTORICAL) ───────────────────────────────────
+async function loadPortChart(period) {
+  const days = { '1M':30,'3M':90,'6M':182,'1Y':365 }[period]||30;
+  const from = new Date(Date.now()-days*86400000).toISOString().split('T')[0];
+  const syms = S.portfolio.map(h=>h.symbol);
+
+  const allHist = {};
+  await Promise.all(syms.map(async sym => {
+    try { allHist[sym] = await API.historical(sym, from); }
+    catch { allHist[sym] = []; }
+  }));
+
+  const sets = syms.map(s => new Set((allHist[s]||[]).map(d=>d.date)));
+  const dates = sets.length
+    ? [...sets[0]].filter(d=>sets.every(s=>s.has(d))).sort()
+    : [];
+
+  if (dates.length < 2) {
+    buildPortChart(['Start','Now'], [Port.cost(), Port.value()]);
+    return;
+  }
+
+  const vals = dates.map(date =>
+    S.portfolio.reduce((sum,h) => {
+      const e = (allHist[h.symbol]||[]).find(d=>d.date===date);
+      return sum + (e ? e.close*h.shares : 0);
+    },0)
+  );
+
+  const labels = dates.map(d =>
+    new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
+  );
+
+  buildPortChart(labels, vals);
+}
+
+// ── STOCK MODAL ────────────────────────────────────────────────────
+async function openStock(symbol) {
+  $('stk-modal-title').textContent = symbol;
+  $('stk-modal-body').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Loading…</div>';
+  $('ov-stock').classList.add('open');
+
+  try {
+    const [prof, hist, divs] = await Promise.all([
+      API.profile(symbol),
+      API.historical(symbol, new Date(Date.now()-365*86400000).toISOString().split('T')[0]),
+      API.dividends(symbol),
+    ]);
+
+    const q   = S.quotes[symbol];
+    const h   = S.portfolio.find(p=>p.symbol===symbol);
+    const px  = q?.price ?? 0;
+    const chg = q?.changesPercentage ?? 0;
+    const val = px*(h?.shares??0);
+    const cost= (h?.avgCost??0)*(h?.shares??0);
+    const color = COLORS[S.portfolio.indexOf(h)%COLORS.length];
+
+    const rangeStr = prof?.range ?? '';
+    const [lo,hi] = rangeStr.includes('-') ? rangeStr.split('-') : ['—','—'];
+
+    $('stk-modal-body').innerHTML = `
+      <div class="stk-hdr">
+        <div class="stk-icon" style="background:${color}1a;border:1px solid ${color}33;color:${color}">${symbol.slice(0,4)}</div>
+        <div class="stk-name">
+          <h2>${symbol}</h2>
+          <p>${prof?.companyName??''}</p>
+        </div>
+        <div class="stk-price">
+          <div class="price">${f.$(px)}</div>
+          <span class="badge ${sign(chg)}" style="float:right;margin-top:5px">${f.pct(chg)}</span>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><div class="ml">Market Cap</div><div class="mv">${f.compact(prof?.mktCap)}</div></div>
+        <div class="metric"><div class="ml">P/E Ratio</div><div class="mv">${prof?.pe?f.num(prof.pe,1):'—'}</div></div>
+        <div class="metric"><div class="ml">52W Low</div><div class="mv">${f.$(parseFloat(lo)||null)}</div></div>
+        <div class="metric"><div class="ml">52W High</div><div class="mv">${f.$(parseFloat(hi)||null)}</div></div>
+      </div>
+
+      ${h ? `
+      <div class="position">
+        <div class="pos-item"><div class="pl">Shares</div><div class="pv">${f.num(h.shares, h.shares%1===0?0:4)}</div></div>
+        <div class="pos-item"><div class="pl">Avg Cost</div><div class="pv">${f.$(h.avgCost)}</div></div>
+        <div class="pos-item"><div class="pl">Market Value</div><div class="pv">${f.$(val)}</div></div>
+        <div class="pos-item"><div class="pl">Total Return</div>
+          <div class="pv c-${sign(val-cost)}">${f.$(val-cost)} (${f.pct(cost?((val-cost)/cost)*100:0)})</div>
+        </div>
+      </div>` : ''}
+
+      <div class="sec-title">Price History (1Y)</div>
+      <div style="position:relative;height:180px;margin-bottom:22px"><canvas id="stk-chart"></canvas></div>
+
+      <div class="sec-title">Dividend History</div>
+      ${divs.length ? `
+        <div class="div-list">
+          ${divs.slice(0,8).map(d=>`
+            <div class="div-row">
+              <span class="dr">${f.date(d.date)}</span>
+              <span>${d.label||'Cash Dividend'}</span>
+              <span class="da">${f.$(d.dividend)}/share</span>
+            </div>`).join('')}
+        </div>` : `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No dividend history found</p>`}
+    `;
+
+    // Stock chart
+    if (hist.length) {
+      const sliced = hist.slice(0,252).reverse();
+      const labels = sliced.map(d=>new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+      const prices = sliced.map(d=>d.close);
+      if (S.charts.stock) S.charts.stock.destroy();
+      const isGain = prices[prices.length-1] >= prices[0];
+      const col = isGain ? '#14f0a8' : '#f0486e';
+      S.charts.stock = new Chart($('stk-chart'), {
+        type:'line',
+        data:{ labels, datasets:[{ data:prices, borderColor:col, borderWidth:1.5, pointRadius:0, fill:true,
+          backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }]},
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}, tooltip:{ ...tooltipBase, callbacks:{label:c=>` ${f.$(c.parsed.y)}`}}},
+          scales:{
+            x:{ grid:{display:false}, ticks:{maxTicksLimit:5,font:{size:9}}},
+            y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{font:{size:9},callback:v=>f.$(v,0)}},
+          }
+        }
+      });
+    }
+  } catch(e) {
+    $('stk-modal-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// ── CALCULATOR ─────────────────────────────────────────────────────
+function runCalc() {
+  const start   = parseFloat($('c-start').value)  || 0;
+  const monthly = parseFloat($('c-monthly').value) || 0;
+  const annRet  = parseFloat($('c-return').value)  || 0;
+  const annDiv  = parseFloat($('c-div').value)     || 0;
+  const years   = parseInt($('c-years').value)     || 20;
+  const drip    = S.drip;
+
+  const mRet = annRet / 100 / 12;
+  const mDiv = annDiv / 100 / 12;
+  const months = years * 12;
+
+  let port = start, contrib = start, divTotal = 0;
+  const labels=[], portVals=[], contribVals=[], divVals=[];
+
+  for (let m=0; m<=months; m++) {
+    if (m>0) {
+      port    += monthly;
+      contrib += monthly;
+      const d  = port * mDiv;
+      divTotal+= d;
+      if (drip) port += d;
+      port    *= (1+mRet);
+    }
+    if (m%12===0) {
+      const yr = m/12;
+      labels.push(yr===0?'Now':`Yr ${yr}`);
+      portVals.push(Math.round(port));
+      contribVals.push(Math.round(contrib));
+      divVals.push(Math.round(divTotal));
+    }
+  }
+
+  const final   = portVals[portVals.length-1];
+  const returns = final - contrib;
+  $('r-final').textContent   = f.$(final,0);
+  $('r-contrib').textContent = f.$(contrib,0);
+  $('r-returns').textContent = f.$(returns,0);
+  $('r-divs').textContent    = f.$(divTotal,0);
+  buildCalcChart(labels, contribVals, portVals, divVals);
+}
+
+// ── SETTINGS ───────────────────────────────────────────────────────
+function renderEditor() {
+  const ed = $('h-editor');
+  if (!ed) return;
+  ed.innerHTML = S.portfolio.map((h,i)=>`
+    <div class="h-row" data-i="${i}">
+      <input type="text"   class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
+      <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
+      <input type="number" class="hc" placeholder="Cost" value="${h.avgCost}" min="0" step="any">
+      <button class="rm-btn" data-i="${i}">×</button>
+    </div>`).join('');
+
+  ed.querySelectorAll('.rm-btn').forEach(b =>
+    b.addEventListener('click', () => { S.portfolio.splice(+b.dataset.i,1); renderEditor(); })
+  );
+}
+
+function saveSettings() {
+  const key = $('set-apikey').value.trim();
+  if (key) { S.apiKey = key; localStorage.setItem('folio_key', key); }
+
+  const rows = document.querySelectorAll('#h-editor .h-row');
+  const port = [];
+  rows.forEach(r => {
+    const sym    = r.querySelector('.hs').value.trim().toUpperCase();
+    const shares = parseFloat(r.querySelector('.hq').value);
+    const cost   = parseFloat(r.querySelector('.hc').value);
+    if (sym && shares>0 && cost>0) port.push({ symbol:sym, shares, avgCost:cost });
+  });
+  if (port.length) {
+    S.portfolio = port;
+    localStorage.setItem('folio_port', JSON.stringify(port));
+  }
+
+  closeOverlay('ov-settings');
+  loadAll();
+}
+
+// ── OVERLAY HELPERS ────────────────────────────────────────────────
+function closeOverlay(id) {
+  const ov = $(id);
+  if (!ov) return;
+  ov.classList.remove('open');
+  if (id==='ov-stock' && S.charts.stock) { S.charts.stock.destroy(); S.charts.stock=null; }
+}
+
+// ── LOAD ALL ───────────────────────────────────────────────────────
+async function loadAll() {
+  const syms = S.portfolio.map(h=>h.symbol);
+  if (!syms.length) return;
+  try {
+    const qs = await API.quotes(syms);
+    qs.forEach(q => { S.quotes[q.symbol]=q; });
+    renderDash();
+    renderHoldings();
+    await loadPortChart(S.period);
+
+    // Pre-fill calculator with current portfolio value
+    const total = Port.value();
+    if (total>0) $('c-start').value = Math.round(total);
+    runCalc();
+  } catch(e) {
+    console.error('Load failed:', e);
+  }
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────
+function initEvents() {
+  // Tabs
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = $('tab-'+btn.dataset.tab);
+      if (tab) tab.classList.add('active');
+      if (btn.dataset.tab==='calculator') runCalc();
+    });
+  });
+
+  // Period buttons
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      S.period = btn.dataset.p;
+      loadPortChart(S.period);
+    });
+  });
+
+  // Table sort
+  document.querySelectorAll('thead th[data-s]').forEach(th => {
+    th.addEventListener('click', () => {
+      S.sortDir = S.sortCol===th.dataset.s ? S.sortDir*-1 : -1;
+      S.sortCol = th.dataset.s;
+      renderHoldings();
+    });
+  });
+
+  // Refresh
+  $('btn-refresh')?.addEventListener('click', () => {
+    const k = 'folio_c_q_'+S.portfolio.map(h=>h.symbol).join(',');
+    localStorage.removeItem(k);
+    loadAll();
+  });
+
+  // Settings open
+  $('btn-settings')?.addEventListener('click', () => {
+    $('set-apikey').value = S.apiKey;
+    renderEditor();
+    $('ov-settings').classList.add('open');
+  });
+  $('btn-add-pos')?.addEventListener('click', () => {
+    $('set-apikey').value = S.apiKey;
+    renderEditor();
+    $('ov-settings').classList.add('open');
+  });
+  $('save-settings')?.addEventListener('click', saveSettings);
+  $('add-holding')?.addEventListener('click', () => {
+    S.portfolio.push({symbol:'',shares:0,avgCost:0});
+    renderEditor();
+  });
+
+  // Close buttons
+  document.querySelectorAll('[data-close]').forEach(btn =>
+    btn.addEventListener('click', () => closeOverlay(btn.dataset.close))
+  );
+  document.querySelectorAll('.overlay').forEach(ov =>
+    ov.addEventListener('click', e => { if(e.target===ov) closeOverlay(ov.id); })
+  );
+
+  // Calculator
+  $('btn-calc')?.addEventListener('click', runCalc);
+  ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id =>
+    $(id)?.addEventListener('input', runCalc)
+  );
+  $('drip-toggle')?.addEventListener('click', e => {
+    S.drip = !S.drip;
+    e.target.classList.toggle('on', S.drip);
+    runCalc();
+  });
+
+  // API prompt
+  $('prompt-submit')?.addEventListener('click', () => {
+    const k = $('prompt-key').value.trim();
+    if (!k) return;
+    S.apiKey = k;
+    localStorage.setItem('folio_key', k);
+    $('api-screen').style.display = 'none';
+    loadAll();
+  });
+  $('prompt-key')?.addEventListener('keydown', e => {
+    if (e.key==='Enter') $('prompt-submit').click();
+  });
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+function init() {
+  initEvents();
+  if (!S.apiKey) {
+    $('api-screen').style.display = 'flex';
+    return;
+  }
+  loadAll();
+}
+
+init();
+</script>
+</body>
+</html>
