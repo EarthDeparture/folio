@@ -1010,70 +1010,68 @@ async function openStock(symbol) {
   $('stk-modal-body').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Loading…</div>';
   $('ov-stock').classList.add('open');
 
+  // Use already-loaded quote data for all metrics — no profile API call needed.
+  // FMP quote includes: name, marketCap, pe, yearHigh, yearLow, price, changesPercentage, dividendYield
+  const q     = S.quotes[symbol];
+  const h     = S.portfolio.find(p=>p.symbol===symbol);
+  const px    = q?.price ?? 0;
+  const chg   = q?.changesPercentage ?? 0;
+  const val   = px * (h?.shares ?? 0);
+  const cost  = (h?.avgCost ?? 0) * (h?.shares ?? 0);
+  const color = COLORS[S.portfolio.indexOf(h) % COLORS.length];
+  const divYield = q?.dividendYield ? (q.dividendYield * 100) : 0;
+
+  // Render the shell immediately with data we already have
+  $('stk-modal-body').innerHTML = `
+    <div class="stk-hdr">
+      <div class="stk-icon" style="background:${color}1a;border:1px solid ${color}33;color:${color}">${symbol.slice(0,4)}</div>
+      <div class="stk-name">
+        <h2>${symbol}</h2>
+        <p>${q?.name ?? ''}</p>
+      </div>
+      <div class="stk-price">
+        <div class="price">${f.$(px)}</div>
+        <span class="badge ${sign(chg)}" style="float:right;margin-top:5px">${f.pct(chg)}</span>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="ml">Market Cap</div><div class="mv">${f.compact(q?.marketCap)}</div></div>
+      <div class="metric"><div class="ml">P/E Ratio</div><div class="mv">${q?.pe ? f.num(q.pe,1) : '—'}</div></div>
+      <div class="metric"><div class="ml">52W Low</div><div class="mv">${f.$(q?.yearLow)}</div></div>
+      <div class="metric"><div class="ml">52W High</div><div class="mv">${f.$(q?.yearHigh)}</div></div>
+    </div>
+
+    ${h ? `
+    <div class="position">
+      <div class="pos-item"><div class="pl">Shares</div><div class="pv">${f.num(h.shares, h.shares%1===0?0:4)}</div></div>
+      <div class="pos-item"><div class="pl">Avg Cost</div><div class="pv">${f.$(h.avgCost)}</div></div>
+      <div class="pos-item"><div class="pl">Market Value</div><div class="pv">${f.$(val)}</div></div>
+      <div class="pos-item"><div class="pl">Total Return</div>
+        <div class="pv c-${sign(val-cost)}">${f.$(val-cost)} (${f.pct(cost ? ((val-cost)/cost)*100 : 0)})</div>
+      </div>
+    </div>` : ''}
+
+    <div class="sec-title">Price History (1Y)</div>
+    <div style="position:relative;height:180px;margin-bottom:22px">
+      <canvas id="stk-chart"></canvas>
+      <div id="stk-chart-loading" class="spinner-wrap" style="position:absolute;inset:0">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <div class="sec-title">Dividend History</div>
+    <div id="stk-div-section">
+      <div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div>
+    </div>
+  `;
+
+  // Load historical prices independently
   try {
-    const [prof, hist, divs] = await Promise.all([
-      API.profile(symbol),
-      API.historical(symbol, new Date(Date.now()-365*86400000).toISOString().split('T')[0]),
-      API.dividends(symbol),
-    ]);
-
-    const q   = S.quotes[symbol];
-    const h   = S.portfolio.find(p=>p.symbol===symbol);
-    const px  = q?.price ?? 0;
-    const chg = q?.changesPercentage ?? 0;
-    const val = px*(h?.shares??0);
-    const cost= (h?.avgCost??0)*(h?.shares??0);
-    const color = COLORS[S.portfolio.indexOf(h)%COLORS.length];
-
-    const rangeStr = prof?.range ?? '';
-    const [lo,hi] = rangeStr.includes('-') ? rangeStr.split('-') : ['—','—'];
-
-    $('stk-modal-body').innerHTML = `
-      <div class="stk-hdr">
-        <div class="stk-icon" style="background:${color}1a;border:1px solid ${color}33;color:${color}">${symbol.slice(0,4)}</div>
-        <div class="stk-name">
-          <h2>${symbol}</h2>
-          <p>${prof?.companyName??''}</p>
-        </div>
-        <div class="stk-price">
-          <div class="price">${f.$(px)}</div>
-          <span class="badge ${sign(chg)}" style="float:right;margin-top:5px">${f.pct(chg)}</span>
-        </div>
-      </div>
-
-      <div class="metrics">
-        <div class="metric"><div class="ml">Market Cap</div><div class="mv">${f.compact(prof?.mktCap)}</div></div>
-        <div class="metric"><div class="ml">P/E Ratio</div><div class="mv">${prof?.pe?f.num(prof.pe,1):'—'}</div></div>
-        <div class="metric"><div class="ml">52W Low</div><div class="mv">${f.$(parseFloat(lo)||null)}</div></div>
-        <div class="metric"><div class="ml">52W High</div><div class="mv">${f.$(parseFloat(hi)||null)}</div></div>
-      </div>
-
-      ${h ? `
-      <div class="position">
-        <div class="pos-item"><div class="pl">Shares</div><div class="pv">${f.num(h.shares, h.shares%1===0?0:4)}</div></div>
-        <div class="pos-item"><div class="pl">Avg Cost</div><div class="pv">${f.$(h.avgCost)}</div></div>
-        <div class="pos-item"><div class="pl">Market Value</div><div class="pv">${f.$(val)}</div></div>
-        <div class="pos-item"><div class="pl">Total Return</div>
-          <div class="pv c-${sign(val-cost)}">${f.$(val-cost)} (${f.pct(cost?((val-cost)/cost)*100:0)})</div>
-        </div>
-      </div>` : ''}
-
-      <div class="sec-title">Price History (1Y)</div>
-      <div style="position:relative;height:180px;margin-bottom:22px"><canvas id="stk-chart"></canvas></div>
-
-      <div class="sec-title">Dividend History</div>
-      ${divs.length ? `
-        <div class="div-list">
-          ${divs.slice(0,8).map(d=>`
-            <div class="div-row">
-              <span class="dr">${f.date(d.date)}</span>
-              <span>${d.label||'Cash Dividend'}</span>
-              <span class="da">${f.$(d.dividend)}/share</span>
-            </div>`).join('')}
-        </div>` : `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No dividend history found</p>`}
-    `;
-
-    // Stock chart
+    const from = new Date(Date.now()-365*86400000).toISOString().split('T')[0];
+    const hist = await API.historical(symbol, from);
+    const loading = $('stk-chart-loading');
+    if (loading) loading.remove();
     if (hist.length) {
       const sliced = hist.slice(0,252).reverse();
       const labels = sliced.map(d=>new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
@@ -1096,7 +1094,34 @@ async function openStock(symbol) {
       });
     }
   } catch(e) {
-    $('stk-modal-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted)">Failed to load: ${e.message}</div>`;
+    const el = $('stk-chart-loading');
+    if (el) el.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable: ${e.message}</span>`;
+  }
+
+  // Load dividends independently — handle 403 gracefully
+  try {
+    const divs = await API.dividends(symbol);
+    const el = $('stk-div-section');
+    if (!el) return;
+    if (divs.length) {
+      el.innerHTML = `<div class="div-list">
+        ${divs.slice(0,8).map(d=>`
+          <div class="div-row">
+            <span class="dr">${f.date(d.date)}</span>
+            <span>${d.label||'Cash Dividend'}</span>
+            <span class="da">${f.$(d.dividend)}/share</span>
+          </div>`).join('')}
+      </div>`;
+    } else {
+      el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No dividend history available</p>`;
+    }
+  } catch(e) {
+    const el = $('stk-div-section');
+    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">
+      ${e.message.includes('403') || e.message.includes('Forbidden')
+        ? 'Dividend data requires a paid FMP plan'
+        : `Could not load dividends: ${e.message}`}
+    </p>`;
   }
 }
 
