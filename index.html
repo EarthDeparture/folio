@@ -320,6 +320,111 @@ tbody tr:last-child td { border-bottom:none; }
 .mt-12 { margin-top:12px; }
 .mt-18 { margin-top:18px; }
 .sec-title { font-size:13px; font-weight:600; letter-spacing:-.01em; margin-bottom:12px; }
+
+/* ── TABLE SCROLL WRAPPER ── */
+.tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — TABLET (≤1024px)
+═══════════════════════════════════════════════ */
+@media (max-width:1024px) {
+  .charts-row { grid-template-columns:1fr; }
+  .alloc-wrap { height:180px; }
+  .calc-layout { grid-template-columns:1fr; }
+  .calc-inputs { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .calc-inputs > div:last-child { grid-column:1/-1; }
+  .calc-inputs > .inp-grp:last-of-type { grid-column:1/-1; }
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — MOBILE (≤768px)
+═══════════════════════════════════════════════ */
+@media (max-width:768px) {
+  /* Layout */
+  .app { padding:0 16px 60px; }
+
+  /* Header */
+  header {
+    flex-wrap:wrap; padding:14px 0 18px; gap:10px;
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    grid-template-rows:auto auto;
+    align-items:center;
+  }
+  .logo    { grid-column:1; grid-row:1; }
+  .hdr-right { grid-column:3; grid-row:1; gap:6px; }
+  .nav     { grid-column:1/-1; grid-row:2; width:100%; overflow-x:auto; justify-content:flex-start; }
+  .upd     { display:none; }
+  .nav-btn { padding:7px 16px; font-size:13px; white-space:nowrap; }
+
+  /* Stats */
+  .stats-row {
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .stat-card.main { grid-column:1/-1; }
+  .stat-val { font-size:22px !important; }
+
+  /* Charts */
+  .charts-row { grid-template-columns:1fr; gap:12px; }
+  .chart-wrap { height:200px; }
+  .alloc-wrap { height:200px; }
+  .period-btns { gap:2px; }
+  .period-btn  { padding:4px 9px; font-size:10px; }
+
+  /* Holdings */
+  .tbl-hdr { flex-direction:column; align-items:flex-start; gap:10px; }
+  .tbl-hdr button { width:100%; }
+  .sym-info .name { display:none; } /* hide company name on mobile */
+  thead th, tbody td { padding:10px 10px; }
+  /* Hide less critical columns on mobile */
+  .col-avgcost, .col-divyield { display:none; }
+
+  /* Calculator */
+  .calc-layout { grid-template-columns:1fr; gap:14px; }
+  .calc-inputs { display:flex; flex-direction:column; }
+  .result-row  { grid-template-columns:1fr 1fr; gap:10px; }
+  .calc-chart-wrap { height:200px; }
+
+  /* Modals — slide up from bottom */
+  .overlay { align-items:flex-end; padding:0; }
+  .modal {
+    max-width:100%; border-radius:20px 20px 0 0;
+    max-height:92vh;
+  }
+  .modal.wide { max-width:100%; }
+  .modal-hdr  { padding:18px 20px; }
+  .modal-body { padding:20px; }
+
+  /* Stock detail */
+  .stk-hdr    { flex-wrap:wrap; }
+  .stk-price  { width:100%; margin-left:0; margin-top:10px; text-align:left; }
+  .stk-price .price { font-size:22px; }
+  .metrics    { grid-template-columns:1fr 1fr; gap:8px; }
+  .position   { grid-template-columns:1fr 1fr; gap:8px; }
+
+  /* Settings editor */
+  .h-row { grid-template-columns:80px 1fr 1fr 30px; gap:5px; }
+  .h-editor { max-height:260px; overflow-y:auto; }
+
+  /* API prompt */
+  .api-card { padding:28px 20px; }
+}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — SMALL MOBILE (≤480px)
+═══════════════════════════════════════════════ */
+@media (max-width:480px) {
+  .stats-row { grid-template-columns:1fr; }
+  .stat-card.main { grid-column:unset; }
+  .result-row { grid-template-columns:1fr 1fr; }
+  .metrics  { grid-template-columns:1fr 1fr; }
+  .position { grid-template-columns:1fr 1fr; }
+  /* Show minimal table columns */
+  .col-shares { display:none; }
+  thead th:nth-child(6), tbody td:nth-child(6) { display:none; } /* day% hidden */
+  .stat-val { font-size:20px !important; }
+}
 </style>
 </head>
 <body>
@@ -406,23 +511,25 @@ tbody tr:last-child td { border-bottom:none; }
         <h3>Holdings</h3>
         <button class="btn" id="btn-add-pos">+ Add Position</button>
       </div>
+      <div class="tbl-scroll">
       <table>
         <thead>
           <tr>
             <th data-s="symbol">Symbol</th>
-            <th data-s="shares">Shares</th>
-            <th data-s="avgCost" style="text-align:right">Avg Cost</th>
+            <th data-s="shares" class="col-shares">Shares</th>
+            <th data-s="avgCost" class="col-avgcost" style="text-align:right">Avg Cost</th>
             <th data-s="price"   style="text-align:right">Price</th>
             <th data-s="value"   style="text-align:right">Value</th>
             <th data-s="day"     style="text-align:right">Day %</th>
             <th data-s="ret"     style="text-align:right">Total Return</th>
-            <th data-s="div"     style="text-align:right">Div Yield</th>
+            <th data-s="div"     class="col-divyield" style="text-align:right">Div Yield</th>
           </tr>
         </thead>
         <tbody id="holdings-body">
           <tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading…</div></td></tr>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 
@@ -620,9 +727,20 @@ const API = {
   async get(path, params={}) {
     params.apikey = S.apiKey;
     const qs = new URLSearchParams(params).toString();
-    const r = await fetch(`${FMP}${path}?${qs}`);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const r = await fetch(`${FMP}${path}?${qs}`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      // FMP returns { "Error Message": "..." } for invalid keys / rate limits
+      if (data?.['Error Message']) throw new Error(data['Error Message']);
+      return data;
+    } catch(e) {
+      clearTimeout(timer);
+      throw e.name === 'AbortError' ? new Error('Request timed out') : e;
+    }
   },
   async quotes(symbols) {
     const k = 'q_' + symbols.join(',');
@@ -828,8 +946,8 @@ function renderHoldings() {
           </div>
         </div>
       </td>
-      <td class="mono">${f.num(h.shares, h.shares%1===0?0:4)}</td>
-      <td class="mono" style="text-align:right">${f.$(h.avgCost)}</td>
+      <td class="mono col-shares">${f.num(h.shares, h.shares%1===0?0:4)}</td>
+      <td class="mono col-avgcost" style="text-align:right">${f.$(h.avgCost)}</td>
       <td class="mono" style="text-align:right">${f.$(h.px)}</td>
       <td class="mono" style="text-align:right">${f.$(h.val)}</td>
       <td style="text-align:right">
@@ -839,7 +957,7 @@ function renderHoldings() {
         <div class="mono ${h.ret!=null?'c-'+sign(h.ret):'c-muted'}">${h.ret!=null?f.pct(h.ret):'—'}</div>
         <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val!=null?h.val-h.cost:null)}</div>
       </td>
-      <td class="mono" style="text-align:right;color:${h.div>0?'var(--gain)':'var(--muted)'}">
+      <td class="mono col-divyield" style="text-align:right;color:${h.div>0?'var(--gain)':'var(--muted)'}">
         ${h.div>0?f.pct(h.div):'—'}
       </td>
     </tr>
@@ -1043,7 +1161,7 @@ function renderEditor() {
 }
 
 function saveSettings() {
-  const key = $('set-apikey').value.trim();
+  const key = $('set-apikey').value.trim().replace(/\s/g,'');
   if (key) { S.apiKey = key; localStorage.setItem('folio_key', key); }
 
   const rows = document.querySelectorAll('#h-editor .h-row');
@@ -1075,19 +1193,40 @@ function closeOverlay(id) {
 async function loadAll() {
   const syms = S.portfolio.map(h=>h.symbol);
   if (!syms.length) return;
+
+  // Show loading state
+  const tbody = $('holdings-body');
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading quotes…</div></td></tr>`;
+
   try {
     const qs = await API.quotes(syms);
+    if (!qs.length) throw new Error('No data returned — check your API key.');
     qs.forEach(q => { S.quotes[q.symbol]=q; });
+
+    // Render UI immediately — don't wait for the chart
     renderDash();
     renderHoldings();
-    await loadPortChart(S.period);
 
-    // Pre-fill calculator with current portfolio value
+    // Pre-fill calculator
     const total = Port.value();
     if (total>0) $('c-start').value = Math.round(total);
     runCalc();
+
+    // Load portfolio chart in background (15 requests — don't block UI)
+    loadPortChart(S.period).catch(e => console.warn('Portfolio chart failed:', e));
+
   } catch(e) {
     console.error('Load failed:', e);
+    if (tbody) tbody.innerHTML = `
+      <tr><td colspan="8">
+        <div style="text-align:center;padding:40px">
+          <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+          <div style="color:var(--text);font-weight:600;margin-bottom:6px">Failed to load data</div>
+          <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${e.message}</div>
+          <button class="btn btn-primary" onclick="loadAll()">Retry</button>
+          <button class="btn" style="margin-left:8px" onclick="document.getElementById('btn-settings').click()">Check API Key</button>
+        </div>
+      </td></tr>`;
   }
 }
 
@@ -1169,8 +1308,8 @@ function initEvents() {
 
   // API prompt
   $('prompt-submit')?.addEventListener('click', () => {
-    const k = $('prompt-key').value.trim();
-    if (!k) return;
+    const k = $('prompt-key').value.trim().replace(/\s/g,'');
+    if (!k) { $('prompt-key').style.borderColor='var(--loss)'; return; }
     S.apiKey = k;
     localStorage.setItem('folio_key', k);
     $('api-screen').style.display = 'none';
