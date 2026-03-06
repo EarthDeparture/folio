@@ -324,9 +324,9 @@ tbody tr:last-child td { border-bottom:none; }
 /* ── TABLE SCROLL WRAPPER ── */
 .tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 
-/* ═══════════════════════════════════════════════
+/* ═════════════════════════════════════════════
    RESPONSIVE — TABLET (≤1024px)
-═══════════════════════════════════════════════ */
+═════════════════════════════════════════════ */
 @media (max-width:1024px) {
   .charts-row { grid-template-columns:1fr; }
   .alloc-wrap { height:180px; }
@@ -338,7 +338,7 @@ tbody tr:last-child td { border-bottom:none; }
 
 /* ═══════════════════════════════════════════════
    RESPONSIVE — MOBILE (≤768px)
-═══════════════════════════════════════════════ */
+═════════════════════════════════════════════ */
 @media (max-width:768px) {
   /* Layout */
   .app { padding:0 16px 60px; }
@@ -411,9 +411,9 @@ tbody tr:last-child td { border-bottom:none; }
   .api-card { padding:28px 20px; }
 }
 
-/* ═══════════════════════════════════════════════
+/* ═════════════════════════════════════════════
    RESPONSIVE — SMALL MOBILE (≤480px)
-═══════════════════════════════════════════════ */
+═════════════════════════════════════════════ */
 @media (max-width:480px) {
   .stats-row { grid-template-columns:1fr; }
   .stat-card.main { grid-column:unset; }
@@ -434,9 +434,9 @@ tbody tr:last-child td { border-bottom:none; }
   <div class="api-card">
     <div class="icon">📈</div>
     <h2>Welcome to FOLIO</h2>
-    <p>Enter your free API key from <a href="https://financialmodelingprep.com/developer/docs/" target="_blank">financialmodelingprep.com</a> to pull live quotes, historical prices, and dividend data. Free accounts get 250 requests/day.</p>
+    <p>Enter your free API key from <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> to pull live quotes, historical prices, and dividend data. Free accounts get 25 requests/day, or 500 with free key signup.</p>
     <div class="inp-wrap no-pfx" style="margin-bottom:12px">
-      <input type="text" id="prompt-key" placeholder="Paste your FMP API key…" class="set-input">
+      <input type="text" id="prompt-key" placeholder="Paste your Alpha Vantage API key…" class="set-input">
     </div>
     <button class="btn btn-primary" id="prompt-submit" style="width:100%">Get Started</button>
   </div>
@@ -616,9 +616,13 @@ tbody tr:last-child td { border-bottom:none; }
     <div class="modal-body">
       <div class="set-section">
         <h3>API Key</h3>
-        <input type="text" class="set-input" id="set-apikey" placeholder="Your FMP API key…">
+        <input type="text" class="set-input" id="set-apikey" placeholder="Your Alpha Vantage API key…">
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+          <button class="btn" id="btn-test-api">Test Connection</button>
+          <span id="api-test-result" style="font-size:12px;font-family:var(--mono)"></span>
+        </div>
         <p style="font-size:11px;color:var(--muted);margin-top:6px">
-          Free key at <a href="https://financialmodelingprep.com/developer/docs/" target="_blank">financialmodelingprep.com</a> · 250 req/day
+          Free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> · 25 req/day · 5 calls/minute · Check browser console for full debug output
         </p>
       </div>
       <div class="set-section">
@@ -655,12 +659,13 @@ tbody tr:last-child td { border-bottom:none; }
 
 <script>
 // ─────────────────────────────────────────────────────────────────
-// FOLIO · Financial Modeling Prep API · Single-Page Portfolio App
+// FOLIO · Alpha Vantage API · Single-Page Portfolio App
 // ─────────────────────────────────────────────────────────────────
 
-const FMP = 'https://financialmodelingprep.com/api/v3';
-const CACHE_Q = 5 * 60 * 1000;       // quotes: 5 min
-const CACHE_H = 24 * 60 * 60 * 1000; // historical/profiles: 24h
+const AV_BASE = 'https://www.alphavantage.co/query';
+const CACHE_Q = 5 * 60 * 1000;
+const CACHE_H = 24 * 60 * 60 * 1000;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
@@ -724,58 +729,149 @@ const Cache = {
 
 // ── API ────────────────────────────────────────────────────────────
 const API = {
-  async get(path, params={}) {
-    params.apikey = S.apiKey;
-    const qs = new URLSearchParams(params).toString();
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
+
+  // Low-level fetch with timeout, full logging
+  async _fetch(url) {
+    const key = S.apiKey.trim();
+    const sep = url.includes('?') ? '&' : '?';
+    const fullUrl = `${url}${sep}apikey=${encodeURIComponent(key)}`;
+
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+
     try {
-      const r = await fetch(`${FMP}${path}?${qs}`, { signal: ctrl.signal });
+      console.log(`[FOLIO] GET ${fullUrl.replace(key,'***')}`);
+      const r = await fetch(fullUrl, {
+        signal: ctrl.signal,
+      });
       clearTimeout(timer);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json();
-      // FMP returns { "Error Message": "..." } for invalid keys / rate limits
-      if (data?.['Error Message']) throw new Error(data['Error Message']);
+
+      const text = await r.text();
+      console.log(`[FOLIO] ${r.status} — ${text.slice(0,200)}`);
+
+      if (!r.ok) {
+        if (r.status === 429 || r.status === 403) {
+          throw new Error(`Rate limit reached (HTTP ${r.status}). Free Alpha Vantage: 25 calls/day or 5 calls/minute.`);
+        }
+        throw new Error(`HTTP ${r.status} — ${text.slice(0,120)}`);
+      }
+
+      const data = JSON.parse(text);
+      if (data['Error Message']) throw new Error(data['Error Message']);
+      if (data['Note']) throw new Error(data['Note']);
       return data;
+
     } catch(e) {
       clearTimeout(timer);
-      throw e.name === 'AbortError' ? new Error('Request timed out') : e;
+      if (e.name === 'AbortError') throw new Error('Request timed out (>15s). Check your network.');
+      throw e;
     }
   },
-  async quotes(symbols) {
-    const k = 'q_' + symbols.join(',');
+
+  // Fetch one quote
+  async _oneQuote(symbol) {
+    const k = `q1_${symbol}`;
     const c = Cache.get(k);
     if (c) return c;
-    const d = await this.get(`/quote/${symbols.join(',')}`);
-    if (Array.isArray(d) && d.length) Cache.set(k, d, CACHE_Q);
-    return Array.isArray(d) ? d : [];
+
+    const d = await this._fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}`);
+    const quote = d?.['Global Quote'];
+    if (quote?.['01. symbol']) {
+      const q = {
+        symbol: quote['01. symbol'],
+        name: symbol,  // AV doesn't return name in quote
+        price: parseFloat(quote['05. price']),
+        change: parseFloat(quote['09. change']) || 0,
+        changesPercentage: parseFloat(quote['10. change percent']) || 0,
+        marketCap: quote['06. market cap'] || null,
+        pe: quote['07. pe ratio'] || null,
+        yearHigh: parseFloat(quote['02. high']) || null,
+        yearLow: parseFloat(quote['03. low']) || null,
+        dividendYield: parseFloat(quote['08. dividend yield']) || 0,
+      };
+      if (q.symbol) Cache.set(k, q, CACHE_Q);
+      return q;
+    }
+    return null;
   },
+
+  // Fetch all quotes — 3 concurrent at a time, 200ms gap between batches
+  async quotes(symbols) {
+    const results = [];
+    for (let i = 0; i < symbols.length; i += 5) { // Alpha Vantage free: 5 calls/min
+      const chunk  = symbols.slice(i, i + 5);
+      const batch  = await Promise.all(
+        chunk.map(sym => this._oneQuote(sym).catch(e => {
+          console.error(`[FOLIO] Quote failed for ${sym}:`, e.message);
+          return null;
+        }))
+      );
+      results.push(...batch.filter(Boolean));
+      if (i + 5 < symbols.length) await sleep(12000); // 12 sec delay between batches (5 calls/min)
+    }
+    return results;
+  },
+
+  // Historical EOD prices
   async historical(symbol, from) {
     const k = `h_${symbol}_${from}`;
     const c = Cache.get(k);
     if (c) return c;
-    const d = await this.get(`/historical-price-full/${symbol}`, { from });
-    const prices = d?.historical || [];
+
+    const d = await this._fetch(`${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full`);
+    const ts = d?.['Time Series (Daily)'];
+    if (!ts) return [];
+
+    // Alpha Vantage returns: { "2024-01-01": {"1. open": ..., "4. close": ...} }
+    // Need to sort by date and filter
+    const dates = Object.keys(ts).sort().reverse();
+    const prices = dates
+      .filter(date => date >= from)
+      .map(date => ({
+        date,
+        close: parseFloat(ts[date]['4. close'])
+      }));
+
     if (prices.length) Cache.set(k, prices, CACHE_H);
     return prices;
   },
+
+  // Dividends
   async dividends(symbol) {
     const k = `div_${symbol}`;
     const c = Cache.get(k);
     if (c) return c;
-    const d = await this.get(`/historical-price-full/stock_dividend/${symbol}`);
-    const divs = d?.historical || [];
+
+    const d = await this._fetch(`${AV_BASE}?function=DIVIDENDS&symbol=${symbol}`);
+    const data = d?.data;
+    if (!data || !Array.isArray(data)) return [];
+
+    // Alpha Vantage returns array of dividend objects
+    const divs = data.map(div => ({
+      date: div.ex_dividend_date,
+      label: div.dividend_type || 'Dividend',
+      dividend: parseFloat(div.amount)
+    }));
+
     if (divs.length) Cache.set(k, divs, CACHE_H);
     return divs;
   },
-  async profile(symbol) {
-    const k = `pro_${symbol}`;
-    const c = Cache.get(k);
-    if (c) return c;
-    const d = await this.get(`/profile/${symbol}`);
-    const p = Array.isArray(d) ? d[0] : null;
-    if (p) Cache.set(k, p, CACHE_H);
-    return p;
+
+  // Quick test: one quote for AAPL, returns { ok, data, error }
+  async test() {
+    try {
+      const d = await this._oneQuote('AAPL');
+      return { ok: !!d?.symbol, data: d };
+    } catch(e) {
+      return { ok: false, error: e.message };
+    }
+  },
+
+  // Clear all cached quote data (call when API key changes)
+  clearQuoteCache() {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('folio_c_q1_'))
+      .forEach(k => localStorage.removeItem(k));
   },
 };
 
@@ -792,7 +888,7 @@ const Port = {
       const cost= h.avgCost*h.shares;
       const ret = val != null ? ((val-cost)/cost)*100 : null;
       const day = q?.changesPercentage ?? null;
-      const div = q?.dividendYield ? q.dividendYield*100 : 0; // FMP gives raw decimal
+      const div = q?.dividendYield ? q.dividendYield*100 : 0;
       return { ...h, px, val, cost, ret, day, div, name: q?.name||h.symbol, color: COLORS[i%COLORS.length] };
     });
   },
@@ -975,14 +1071,17 @@ async function loadPortChart(period) {
   const syms = S.portfolio.map(h=>h.symbol);
 
   const allHist = {};
-  await Promise.all(syms.map(async sym => {
-    try { allHist[sym] = await API.historical(sym, from); }
-    catch { allHist[sym] = []; }
-  }));
+  for (const sym of syms) {
+    try {
+      allHist[sym] = await API.historical(sym, from);
+    } catch(e) {
+      console.warn('Portfolio chart failed for', sym, e.message);
+      allHist[sym] = [];
+    }
+  }
 
-  const sets = syms.map(s => new Set((allHist[s]||[]).map(d=>d.date)));
-  const dates = sets.length
-    ? [...sets[0]].filter(d=>sets.every(s=>s.has(d))).sort()
+  const dates = Object.values(allHist).length
+    ? Object.keys(allHist[0] || {}).sort().reverse()
     : [];
 
   if (dates.length < 2) {
@@ -1010,8 +1109,7 @@ async function openStock(symbol) {
   $('stk-modal-body').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Loading…</div>';
   $('ov-stock').classList.add('open');
 
-  // Use already-loaded quote data for all metrics — no profile API call needed.
-  // FMP quote includes: name, marketCap, pe, yearHigh, yearLow, price, changesPercentage, dividendYield
+  // Use already-loaded quote data for all metrics — no additional API call needed
   const q     = S.quotes[symbol];
   const h     = S.portfolio.find(p=>p.symbol===symbol);
   const px    = q?.price ?? 0;
@@ -1021,7 +1119,7 @@ async function openStock(symbol) {
   const color = COLORS[S.portfolio.indexOf(h) % COLORS.length];
   const divYield = q?.dividendYield ? (q.dividendYield * 100) : 0;
 
-  // Render the shell immediately with data we already have
+  // Render immediately with data we already have
   $('stk-modal-body').innerHTML = `
     <div class="stk-hdr">
       <div class="stk-icon" style="background:${color}1a;border:1px solid ${color}33;color:${color}">${symbol.slice(0,4)}</div>
@@ -1098,7 +1196,7 @@ async function openStock(symbol) {
     if (el) el.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable: ${e.message}</span>`;
   }
 
-  // Load dividends independently — handle 403 gracefully
+  // Load dividends independently — handle errors gracefully
   try {
     const divs = await API.dividends(symbol);
     const el = $('stk-div-section');
@@ -1118,8 +1216,8 @@ async function openStock(symbol) {
   } catch(e) {
     const el = $('stk-div-section');
     if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">
-      ${e.message.includes('403') || e.message.includes('Forbidden')
-        ? 'Dividend data requires a paid FMP plan'
+      ${e.message.includes('403') || e.message.includes('limit')
+        ? 'Data unavailable (API rate limit: 5 calls/minute or 25 calls/day)'
         : `Could not load dividends: ${e.message}`}
     </p>`;
   }
@@ -1131,6 +1229,7 @@ function runCalc() {
   const monthly = parseFloat($('c-monthly').value) || 0;
   const annRet  = parseFloat($('c-return').value)  || 0;
   const annDiv  = parseFloat($('c-div').value)     || 0;
+
   const years   = parseInt($('c-years').value)     || 20;
   const drip    = S.drip;
 
@@ -1228,7 +1327,7 @@ async function loadAll() {
     if (!qs.length) throw new Error('No data returned — check your API key.');
     qs.forEach(q => { S.quotes[q.symbol]=q; });
 
-    // Render UI immediately — don't wait for the chart
+    // Render UI immediately — don't wait for charts
     renderDash();
     renderHoldings();
 
@@ -1237,7 +1336,7 @@ async function loadAll() {
     if (total>0) $('c-start').value = Math.round(total);
     runCalc();
 
-    // Load portfolio chart in background (15 requests — don't block UI)
+    // Load portfolio chart in background — respects 5 calls/min limit
     loadPortChart(S.period).catch(e => console.warn('Portfolio chart failed:', e));
 
   } catch(e) {
@@ -1290,7 +1389,7 @@ function initEvents() {
 
   // Refresh
   $('btn-refresh')?.addEventListener('click', () => {
-    const k = 'folio_c_q_'+S.portfolio.map(h=>h.symbol).join(',');
+    const k = 'folio_c_q1_'+S.portfolio.map(h=>h.symbol).join(',');
     localStorage.removeItem(k);
     loadAll();
   });
