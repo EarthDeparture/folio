@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FOLIO — Multi-Portfolio Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- App config — loaded from config.js (gitignored, never committed) -->
+<!-- Copy config.example.js → config.js and fill in your keys -->
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -318,6 +321,10 @@ tbody tr:last-child td { border-bottom:none; }
 .setup-step label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); display:block; margin-bottom:7px; }
 .setup-step a { font-size:11px; color:var(--muted); }
 .setup-step a:hover { color:var(--accent); }
+.setup-note {
+  font-size:11px; color:var(--muted); line-height:1.6;
+  background:rgba(255,255,255,0.03); padding:12px; border-radius:8px; margin-top:12px;
+}
 
 /* ── SPINNER ── */
 .spinner-wrap { display:flex; align-items:center; justify-content:center; padding:50px; gap:10px; color:var(--muted); font-size:13px; }
@@ -403,31 +410,28 @@ tbody tr:last-child td { border-bottom:none; }
 </head>
 <body>
 
-<!-- ── SETUP SCREEN (first run) ─────────────────────────────── -->
+<!-- ── MISSING CONFIG SCREEN ─────────────────────────────────── -->
+<!-- Shown only if config.js is missing or keys are empty       -->
 <div class="setup-screen" id="setup-screen" style="display:none">
   <div class="setup-card">
-    <div class="icon">📈</div>
-    <h2>Welcome to FOLIO</h2>
-    <p>Connect your data sources to get started. You only need to do this once — credentials are stored locally in your browser.</p>
+    <div class="icon">⚙️</div>
+    <h2>Configuration Missing</h2>
+    <p>FOLIO requires a <code style="font-family:var(--mono);background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px">config.js</code> file with your API keys. This file is gitignored and never committed.</p>
 
-    <div class="setup-step">
-      <label>Supabase Anon Key <a href="https://supabase.com/dashboard/project/qpkvbgeqmrnvhpgqqbmg/settings/api" target="_blank">(get it here)</a></label>
-      <input type="text" id="setup-sb-key" class="set-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…">
+    <div class="setup-note" style="text-align:left;margin-bottom:0">
+      <strong style="display:block;margin-bottom:8px">Quick setup:</strong>
+      <code style="font-family:var(--mono);font-size:12px;line-height:2;white-space:pre">cp config.example.js config.js</code>
+      <br>Then open <code style="font-family:var(--mono);font-size:12px">config.js</code> and fill in:
+      <ul style="margin-top:10px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)">
+        <li><strong style="color:var(--text)">SUPABASE_ANON_KEY</strong> — from your <a href="https://supabase.com/dashboard/project/qpkvbgeqmrnvhpgqqbmg/settings/api" target="_blank">Supabase API settings</a></li>
+        <li><strong style="color:var(--text)">AV_KEY</strong> — from <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> (free)</li>
+      </ul>
+      <p style="margin-top:12px;font-size:11px">After saving, reload this page.</p>
     </div>
-
-    <div class="setup-step">
-      <label>Alpha Vantage API Key <a href="https://www.alphavantage.co/support/#api-key" target="_blank">(get it here — free)</a></label>
-      <input type="text" id="setup-av-key" class="set-input" placeholder="Your Alpha Vantage API key…">
-    </div>
-
-    <button class="btn btn-primary" id="setup-submit" style="width:100%;margin-top:4px">Launch FOLIO</button>
-    <p style="font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6">
-      Supabase stores your portfolios across devices. Alpha Vantage provides live quote data (25 calls/day free). Neither key is transmitted to any third party.
-    </p>
   </div>
 </div>
 
-<!-- ── APP SHELL ─────────────────────────────────────────────── -->
+<!-- ── APP SHELL ───────────────────────────────────────────────── -->
 <div class="app" id="app-shell" style="display:none">
   <header>
     <div class="logo">FOLIO<em>.</em></div>
@@ -454,7 +458,7 @@ tbody tr:last-child td { border-bottom:none; }
     </div>
   </header>
 
-  <!-- DASHBOARD ─────────────────────────────────────────── -->
+  <!-- DASHBOARD ──────────────────────────────────────────────── -->
   <div id="tab-dashboard" class="tab active">
     <div id="dash-empty" class="empty-state" style="display:none">
       <div class="icon">📂</div>
@@ -509,7 +513,7 @@ tbody tr:last-child td { border-bottom:none; }
     </div>
   </div>
 
-  <!-- HOLDINGS ──────────────────────────────────────────── -->
+  <!-- HOLDINGS ──────────────────────────────────────────────── -->
   <div id="tab-holdings" class="tab">
     <div class="card">
       <div class="tbl-hdr">
@@ -538,7 +542,7 @@ tbody tr:last-child td { border-bottom:none; }
     </div>
   </div>
 
-  <!-- CALCULATOR ────────────────────────────────────────── -->
+  <!-- CALCULATOR ────────────────────────────────────────────── -->
   <div id="tab-calculator" class="tab">
     <div class="calc-layout">
       <div class="calc-inputs card">
@@ -588,7 +592,7 @@ tbody tr:last-child td { border-bottom:none; }
   </div>
 </div>
 
-<!-- ── FOLIO SWITCHER MODAL ──────────────────────────────── -->
+<!-- ── FOLIO SWITCHER MODAL ─────────────────────────────────────── -->
 <div class="overlay" id="ov-folio">
   <div class="modal">
     <div class="modal-hdr">
@@ -597,14 +601,14 @@ tbody tr:last-child td { border-bottom:none; }
     </div>
     <div class="modal-body">
       <div id="folio-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-        <div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div>
+        <div class="spinner-wrap" style="padding:16px"><div class="spinner"></div></div>
       </div>
       <button class="btn btn-primary" id="btn-create-folio" style="width:100%">+ Create New Portfolio</button>
     </div>
   </div>
 </div>
 
-<!-- ── SETTINGS MODAL ────────────────────────────────────── -->
+<!-- ── SETTINGS MODAL ────────────────────────────────────────────── -->
 <div class="overlay" id="ov-settings">
   <div class="modal">
     <div class="modal-hdr">
@@ -616,16 +620,8 @@ tbody tr:last-child td { border-bottom:none; }
       <div class="set-section">
         <h3>API Keys</h3>
         <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Alpha Vantage Key</label>
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Alpha Vantage Key <a href="https://www.alphavantage.co/support/#api-key" target="_blank">(free)</a></label>
           <input type="text" class="set-input" id="set-avkey" placeholder="Your Alpha Vantage API key…">
-        </div>
-        <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Supabase Anon Key</label>
-          <input type="text" class="set-input" id="set-sbkey" placeholder="eyJhbGciO…">
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-sm" id="btn-test-api">Test AV Connection</button>
-          <span id="api-test-result" style="font-size:12px;font-family:var(--mono)"></span>
         </div>
       </div>
 
@@ -659,7 +655,7 @@ tbody tr:last-child td { border-bottom:none; }
   </div>
 </div>
 
-<!-- ── STOCK DETAIL MODAL ─────────────────────────────────── -->
+<!-- ── STOCK DETAIL MODAL ──────────────────────────────────────── -->
 <div class="overlay" id="ov-stock">
   <div class="modal wide">
     <div class="modal-hdr">
@@ -672,7 +668,7 @@ tbody tr:last-child td { border-bottom:none; }
   </div>
 </div>
 
-<!-- ── TOASTS ─────────────────────────────────────────────── -->
+<!-- ── TOASTS ─────────────────────────────────────────────────── -->
 <div id="toast-container"></div>
 
 <script>
@@ -682,14 +678,13 @@ tbody tr:last-child td { border-bottom:none; }
 // ═══════════════════════════════════════════════════════════════
 
 // ── CONSTANTS ──────────────────────────────────────────────────
-const SUPABASE_URL  = 'https://qpkvbgeqmrnvhpgqqbmg.supabase.co';
-const AV_BASE       = 'https://www.alphavantage.co/query';
-const CACHE_Q       = 5  * 60 * 1000;       // 5 min — quote cache TTL
-const CACHE_H       = 24 * 60 * 60 * 1000;  // 24h  — historical cache TTL
-const KEY_BROWSER   = 'folio_browser_id';
-const KEY_AV        = 'folio_av_key';
-const KEY_SB        = 'folio_sb_key';
-const KEY_FOLIO     = 'folio_current_id';
+const SUPABASE_URL = 'https://qpkvbgeqmrnvhpgqqbmg.supabase.co';
+const AV_BASE = 'https://www.alphavantage.co/query';
+const CACHE_Q = 5  * 60 * 1000;
+const CACHE_H = 24 * 60 * 60 * 1000;
+const KEY_BROWSER = 'folio_browser_id';
+const KEY_AV      = 'folio_av_key';
+const KEY_FOLIO   = 'folio_current_id';
 
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
@@ -700,29 +695,29 @@ const COLORS = [
 
 // ── STATE ──────────────────────────────────────────────────────
 const S = {
-  db:            null,          // Supabase client
-  avKey:         localStorage.getItem(KEY_AV) || '',
-  browserId:     null,          // lazy-init UUID
-  portfolios:    [],            // all portfolios for this browser
-  currentFolioId: localStorage.getItem(KEY_FOLIO) || null,
-  positions:     [],            // positions for current folio (DB rows, snake_case)
-  quotes:        {},            // { SYMBOL: quoteObj }
-  period:        '1M',
-  sortCol:       'value',
-  sortDir:       -1,
-  drip:          true,
-  charts:        { port:null, alloc:null, calc:null, stock:null },
+  db: null,
+  avKey: '',
+  browserId: null,
+  portfolios: [],
+  currentFolioId: null,
+  positions: [],
+  quotes: {},
+  period: '1M',
+  sortCol: 'value',
+  sortDir: -1,
+  drip: true,
+  charts: { port:null, alloc:null, calc:null, stock:null },
 };
 
 // ── HELPERS ────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const f = {
-  $:       (n, d=2) => n == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d}).format(n),
-  pct:     (n, d=2) => n == null ? '—' : `${n>=0?'+':''}${n.toFixed(d)}%`,
-  num:     (n, d=0) => n == null ? '—' : n.toFixed(d),
-  compact: n        => n == null ? '—' : new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(n),
-  date:    s        => new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+  $: (n, d=2) => n == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d}).format(n),
+  pct: (n, d=2) => n == null ? '—' : `${n>=0?'+':''}${n.toFixed(d)}%`,
+  num: (n, d=0) => n == null ? '—' : n.toFixed(d),
+  compact: n => n == null ? '—' : new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(n),
+  date: s => new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
 };
 const sign = n => n >= 0 ? 'gain' : 'loss';
 
@@ -777,10 +772,7 @@ const Cache = {
 };
 
 // ── DATABASE LAYER ─────────────────────────────────────────────
-// All positions from DB use snake_case (avg_cost, folio_id).
-// In-app, positions also keep avg_cost to stay consistent.
 const DB = {
-  // ── Portfolios ──────────────────────────────────────────────
   async listPortfolios() {
     const { data, error } = await S.db.from('portfolios')
       .select('*')
@@ -803,7 +795,6 @@ const DB = {
     if (error) throw error;
   },
 
-  // ── Positions ───────────────────────────────────────────────
   async listPositions(folioId) {
     const { data, error } = await S.db.from('positions')
       .select('*')
@@ -829,21 +820,15 @@ const DB = {
     if (error) throw error;
   },
 
-  // ── Quotes (shared cache) ───────────────────────────────────
   async upsertQuote(q) {
-    // Fire-and-forget — don't block UI on quote cache write
     S.db.from('quotes').upsert({
-      symbol:             q.symbol,
-      name:               q.name || null,
-      price:              q.price || null,
-      change:             q.change || null,
+      symbol: q.symbol, name: q.name || null,
+      price: q.price || null, change: q.change || null,
       changes_percentage: q.changesPercentage || null,
-      market_cap:         q.marketCap || null,
-      pe:                 q.pe || null,
-      year_high:          q.yearHigh || null,
-      year_low:           q.yearLow || null,
-      dividend_yield:     q.dividendYield || null,
-      cached_at:          new Date().toISOString(),
+      market_cap: q.marketCap || null, pe: q.pe || null,
+      year_high: q.yearHigh || null, year_low: q.yearLow || null,
+      dividend_yield: q.dividendYield || null,
+      cached_at: new Date().toISOString(),
     }, { onConflict: 'symbol' }).then(({ error }) => {
       if (error) console.warn('[FOLIO] Quote cache write failed:', error.message);
     });
@@ -888,24 +873,23 @@ const API = {
     if (!raw?.['01. symbol']) return null;
 
     const q = {
-      symbol:             raw['01. symbol'],
-      name:               symbol,
-      price:              parseFloat(raw['05. price']),
-      change:             parseFloat(raw['09. change'])        || 0,
-      changesPercentage:  parseFloat(raw['10. change percent'])|| 0,
-      marketCap:          raw['06. market cap'] || null,
-      pe:                 raw['07. pe ratio']   || null,
-      yearHigh:           parseFloat(raw['03. high']) || null,
-      yearLow:            parseFloat(raw['04. low'])  || null,
-      dividendYield:      parseFloat(raw['08. dividend yield']) || 0,
+      symbol: raw['01. symbol'],
+      name: symbol,
+      price: parseFloat(raw['05. price']),
+      change: parseFloat(raw['09. change']) || 0,
+      changesPercentage: parseFloat(raw['10. change percent']) || 0,
+      marketCap: raw['06. market cap'] || null,
+      pe: raw['07. pe ratio'] || null,
+      yearHigh: parseFloat(raw['03. high']) || null,
+      yearLow: parseFloat(raw['04. low']) || null,
+      dividendYield: parseFloat(raw['08. dividend yield']) || 0,
     };
 
     Cache.set(cKey, q, CACHE_Q);
-    DB.upsertQuote(q);   // shared cache write (non-blocking)
+    DB.upsertQuote(q);
     return q;
   },
 
-  // Fetch all quotes — 5 at a time, 12s gap to stay under 5/min limit
   async quotes(symbols) {
     const results = [];
     for (let i = 0; i < symbols.length; i += 5) {
@@ -949,8 +933,8 @@ const API = {
     if (!Array.isArray(data)) return [];
 
     const divs = data.map(div => ({
-      date:     div.ex_dividend_date,
-      label:    div.dividend_type || 'Dividend',
+      date: div.ex_dividend_date,
+      label: div.dividend_type || 'Dividend',
       dividend: parseFloat(div.amount),
     }));
     if (divs.length) Cache.set(cKey, divs, CACHE_H);
@@ -968,28 +952,27 @@ const API = {
 };
 
 // ── PORTFOLIO MATH ─────────────────────────────────────────────
-// Positions from DB use snake_case: avg_cost, folio_id
 const Port = {
-  value()   { return S.positions.reduce((s,h) => s + (S.quotes[h.symbol]?.price || 0) * h.shares, 0); },
+  value()   { return S.positions.reduce((s,h) => s + (S.quotes[h.symbol] || 0) * h.shares, 0); },
   cost()    { return S.positions.reduce((s,h) => s + h.avg_cost * h.shares, 0); },
-  dayGain() { return S.positions.reduce((s,h) => s + (S.quotes[h.symbol]?.change || 0) * h.shares, 0); },
+  dayGain() { return S.positions.reduce((s,h) => s + (S.quotes[h.symbol] || 0) * h.shares, 0); },
 
   rows() {
     return S.positions.map((h, i) => {
-      const q   = S.quotes[h.symbol];
-      const px  = q?.price ?? null;
+      const q = S.quotes[h.symbol];
+      const px = q?.price ?? null;
       const val = px != null ? px * h.shares : null;
       const cost = h.avg_cost * h.shares;
-      const ret  = val != null && cost > 0 ? ((val - cost) / cost) * 100 : null;
-      const day  = q?.changesPercentage ?? null;
-      const div  = q?.dividendYield ? q.dividendYield * 100 : 0;
+      const ret = val != null && cost > 0 ? ((val - cost) / cost) * 100 : null;
+      const day = q?.changesPercentage ?? null;
+      const div = q?.dividendYield ? q.dividendYield * 100 : 0;
       return { ...h, avgCost: h.avg_cost, px, val, cost, ret, day, div, name: q?.name || h.symbol, color: h.color || COLORS[i % COLORS.length] };
     });
   },
 };
 
 // ── CHART HELPERS ───────────────────────────────────────────────
-Chart.defaults.color       = '#5a6680';
+Chart.defaults.color = '#5a6680';
 Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
 Chart.defaults.font.family = "'JetBrains Mono',monospace";
 
@@ -1005,7 +988,7 @@ const TT_BASE = { backgroundColor:'#0c1120', borderColor:'rgba(255,255,255,0.1)'
 function buildPortChart(labels, vals) {
   if (S.charts.port) S.charts.port.destroy();
   const isGain = !vals.length || vals[vals.length - 1] >= vals[0];
-  const col    = isGain ? '#14f0a8' : '#f0486e';
+  const col = isGain ? '#14f0a8' : '#f0486e';
   S.charts.port = new Chart($('c-portfolio'), {
     type: 'line',
     data: { labels, datasets: [{ data:vals, borderColor:col, borderWidth:1.5, pointRadius:0, fill:true, backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }] },
@@ -1073,27 +1056,27 @@ function updateFolioPill() {
 // ── RENDER DASHBOARD ───────────────────────────────────────────
 function renderDash() {
   const hasPortfolio = !!S.currentFolioId && S.positions.length > 0;
-  $('dash-empty').style.display   = !S.currentFolioId ? 'flex' : 'none';
-  $('dash-content').style.display = S.currentFolioId  ? 'block' : 'none';
+  $('dash-empty').style.display = !S.currentFolioId ? 'flex' : 'none';
+  $('dash-content').style.display = S.currentFolioId ? 'block' : 'none';
 
   if (!S.currentFolioId) return;
 
-  const val    = Port.value();
-  const cost   = Port.cost();
-  const dayG   = Port.dayGain();
-  const allG   = val - cost;
+  const val = Port.value();
+  const cost = Port.cost();
+  const dayG = Port.dayGain();
+  const allG = val - dayG;
   const dayPct = (val - dayG) > 0 ? dayG / (val - dayG) * 100 : 0;
   const allPct = cost > 0 ? allG / cost * 100 : 0;
   const gc = g => g >= 0 ? 'var(--gain)' : 'var(--loss)';
 
   const set = (id, txt, col) => { const el=$(id); if(!el) return; el.textContent=txt; if(col) el.style.color=col; };
-  set('s-total',   f.$(val),                              gc(allG));
-  set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`,    gc(allG));
-  set('s-daygain', f.$(dayG),                             gc(dayG));
-  set('s-daypct',  f.pct(dayPct) + ' vs. yesterday',     gc(dayG));
-  set('s-allpct',  f.pct(allPct),                        gc(allG));
-  set('s-cost',    f.$(cost));
-  set('s-count',   `${S.positions.length} position${S.positions.length !== 1 ? 's' : ''}`);
+  set('s-total', f.$(val), gc(allG));
+  set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`, gc(allG));
+  set('s-daygain', f.$(dayG), gc(dayG));
+  set('s-daypct', f.pct(dayPct) + ' vs. yesterday', gc(dayG));
+  set('s-allpct', f.pct(allPct), gc(allG));
+  set('s-cost', f.$(cost));
+  set('s-count', `${S.positions.length} position${S.positions.length !== 1 ? 's' : ''}`);
 
   const lu = $('upd-time');
   if (lu) lu.textContent = `Updated ${new Date().toLocaleTimeString()}`;
@@ -1163,16 +1146,15 @@ async function loadPortChart(period) {
     catch(e) { console.warn('Port chart skip:', sym, e.message); allHist[sym] = []; }
   }
 
-  // Build unified date index from first symbol with data
   const sample = Object.values(allHist).find(a => a.length) || [];
-  const dates  = sample.map(d => d.date);
+  const dates = sample.map(d => d.date);
 
   if (dates.length < 2) {
     buildPortChart(['Start','Now'], [Port.cost(), Port.value()]);
     return;
   }
 
-  const vals   = dates.map(date => S.positions.reduce((sum, h) => {
+  const vals = dates.map(date => S.positions.reduce((sum, h) => {
     const e = (allHist[h.symbol] || []).find(d => d.date === date);
     return sum + (e ? e.close * h.shares : 0);
   }, 0));
@@ -1187,13 +1169,13 @@ async function openStock(symbol) {
   $('stk-modal-body').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Loading…</div>';
   $('ov-stock').classList.add('open');
 
-  const q    = S.quotes[symbol];
-  const h    = S.positions.find(p => p.symbol === symbol);
-  const px   = q?.price ?? 0;
-  const chg  = q?.changesPercentage ?? 0;
-  const val  = px * (h?.shares ?? 0);
+  const q = S.quotes[symbol];
+  const h = S.positions.find(p => p.symbol === symbol);
+  const px = q?.price ?? 0;
+  const chg = q?.changesPercentage ?? 0;
+  const val = px * (h?.shares ?? 0);
   const cost = (h?.avg_cost ?? 0) * (h?.shares ?? 0);
-  const idx  = S.positions.findIndex(p => p.symbol === symbol);
+  const idx = S.positions.findIndex(p => p.symbol === symbol);
   const color = h?.color || COLORS[idx % COLORS.length];
 
   $('stk-modal-body').innerHTML = `
@@ -1260,7 +1242,7 @@ async function openStock(symbol) {
   // Dividends
   try {
     const divs = await API.dividends(symbol);
-    const el   = $('stk-divs');
+    const el = $('stk-divs');
     if (!el) return;
     el.innerHTML = divs.length
       ? `<div class="div-list">${divs.slice(0,8).map(d=>`<div class="div-row"><span class="dr">${f.date(d.date)}</span><span>${d.label||'Cash Dividend'}</span><span class="da">${f.$(d.dividend)}/share</span></div>`).join('')}</div>`
@@ -1273,24 +1255,24 @@ async function openStock(symbol) {
 
 // ── CALCULATOR ──────────────────────────────────────────────────
 function runCalc() {
-  const start   = parseFloat($('c-start').value)   || 0;
+  const start = parseFloat($('c-start').value) || 0;
   const monthly = parseFloat($('c-monthly').value) || 0;
-  const annRet  = parseFloat($('c-return').value)  || 0;
-  const annDiv  = parseFloat($('c-div').value)     || 0;
-  const years   = parseInt($('c-years').value)     || 20;
-  const mRet    = annRet / 100 / 12;
-  const mDiv    = annDiv / 100 / 12;
-  const months  = years * 12;
+  const annRet = parseFloat($('c-return').value) || 0;
+  const annDiv = parseFloat($('c-div').value) || 0;
+  const years = parseInt($('c-years').value) || 20;
+  const mRet = annRet / 100 / 12;
+  const mDiv = annDiv / 100 / 12;
+  const months = years * 12;
 
   let port = start, contrib = start, divTotal = 0;
   const labels=[], portVals=[], contribVals=[], divVals=[];
 
   for (let m = 0; m <= months; m++) {
     if (m > 0) {
-      port    += monthly; contrib += monthly;
-      const d  = port * mDiv; divTotal += d;
+      port += monthly; contrib += monthly;
+      const d = port * mDiv; divTotal += d;
       if (S.drip) port += d;
-      port    *= (1 + mRet);
+      port *= (1 + mRet);
     }
     if (m % 12 === 0) {
       const yr = m / 12;
@@ -1302,10 +1284,10 @@ function runCalc() {
   }
 
   const final = portVals[portVals.length - 1];
-  $('r-final').textContent   = f.$(final, 0);
+  $('r-final').textContent = f.$(final, 0);
   $('r-contrib').textContent = f.$(contrib, 0);
   $('r-returns').textContent = f.$(final - contrib, 0);
-  $('r-divs').textContent    = f.$(divTotal, 0);
+  $('r-divs').textContent = f.$(divTotal, 0);
   buildCalcChart(labels, contribVals, portVals, divVals);
 }
 
@@ -1356,7 +1338,7 @@ async function deleteFolioPrompt(id, name) {
     await DB.deletePortfolio(id);
     if (S.currentFolioId === id) {
       S.currentFolioId = null;
-      S.positions      = [];
+      S.positions = [];
       localStorage.removeItem(KEY_FOLIO);
       updateFolioPill();
       renderDash();
@@ -1373,10 +1355,10 @@ async function createFolio() {
   const name = prompt('Portfolio name:');
   if (!name?.trim()) return;
   try {
-    const folio      = await DB.createPortfolio(name.trim());
+    const folio = await DB.createPortfolio(name.trim());
     S.portfolios.push(folio);
     S.currentFolioId = folio.id;
-    S.positions      = [];
+    S.positions = [];
     localStorage.setItem(KEY_FOLIO, folio.id);
     closeOverlay('ov-folio');
     updateFolioPill();
@@ -1391,7 +1373,6 @@ async function createFolio() {
 // ── SETTINGS ────────────────────────────────────────────────────
 function openSettings() {
   $('set-avkey').value = S.avKey;
-  $('set-sbkey').value = localStorage.getItem(KEY_SB) || '';
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
   $('settings-folio-name').textContent = folio ? `— ${folio.name}` : '';
   renderEditor();
@@ -1403,13 +1384,13 @@ function renderEditor() {
   if (!ed) return;
   ed.innerHTML = S.positions.map((h, i) => `
     <div class="h-row" data-i="${i}">
-      <input type="text"   class="hs" placeholder="AAPL"   value="${h.symbol}"   style="text-transform:uppercase">
-      <input type="number" class="hq" placeholder="Shares"  value="${h.shares}"  min="0" step="any">
-      <input type="number" class="hc" placeholder="Avg $"   value="${h.avg_cost}" min="0" step="any">
+      <input type="text" class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
+      <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
+      <input type="number" class="hc" placeholder="Avg $" value="${h.avg_cost}" min="0" step="any">
       <button class="rm-btn" data-sym="${h.symbol}">×</button>
     </div>`).join('');
 
-  ed.querySelectorAll('.rm-btn').forEach(btn =>
+  ed.querySelectorAll('.rm-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const sym = btn.dataset.sym;
       if (!sym) { btn.closest('.h-row').remove(); return; }
@@ -1420,30 +1401,22 @@ function renderEditor() {
         loadAll();
         toast(`Removed ${sym}`);
       } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
-    })
-  );
+    });
+  });
 }
 
 async function saveSettings() {
-  // Save API keys
   const avKey = $('set-avkey').value.trim().replace(/\s/g,'');
-  const sbKey = $('set-sbkey').value.trim().replace(/\s/g,'');
   if (avKey) { S.avKey = avKey; localStorage.setItem(KEY_AV, avKey); }
-  if (sbKey && sbKey !== localStorage.getItem(KEY_SB)) {
-    localStorage.setItem(KEY_SB, sbKey);
-    initDB(sbKey);
-    toast('Supabase key updated — reloading data');
-  }
 
   if (!S.currentFolioId) { closeOverlay('ov-settings'); return; }
 
-  // Save positions
   const rows = document.querySelectorAll('#h-editor .h-row');
   const saves = [];
   rows.forEach((r, i) => {
-    const sym    = r.querySelector('.hs').value.trim().toUpperCase();
+    const sym = r.querySelector('.hs').value.trim().toUpperCase();
     const shares = parseFloat(r.querySelector('.hq').value);
-    const cost   = parseFloat(r.querySelector('.hc').value);
+    const cost = parseFloat(r.querySelector('.hc').value);
     if (sym && shares > 0 && cost >= 0) {
       const existing = S.positions.find(p => p.symbol === sym);
       saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, existing?.color || COLORS[i % COLORS.length]));
@@ -1464,10 +1437,10 @@ async function saveSettings() {
 // ── EXPORT / IMPORT ─────────────────────────────────────────────
 function exportJSON() {
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
-  const blob  = new Blob([JSON.stringify({ folio: folio?.name || 'Unknown', positions: S.positions, exportedAt: new Date().toISOString() }, null, 2)], { type:'application/json' });
-  const a     = document.createElement('a');
-  a.href      = URL.createObjectURL(blob);
-  a.download  = `folio-${(folio?.name||'export').replace(/\s/g,'-')}-${new Date().toISOString().split('T')[0]}.json`;
+  const blob = new Blob([JSON.stringify({ folio: folio?.name || 'Unknown', positions: S.positions, exportedAt: new Date().toISOString() }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `folio-${(folio?.name||'export').replace(/\s/g,'-')}-${new Date().toISOString().split('T')[0]}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
   toast('Exported');
@@ -1507,7 +1480,6 @@ function closeOverlay(id) {
 async function loadAll() {
   if (!S.currentFolioId) { renderDash(); renderHoldings(); return; }
 
-  // Load positions from DB
   try {
     S.positions = await DB.listPositions(S.currentFolioId);
   } catch(e) {
@@ -1522,9 +1494,8 @@ async function loadAll() {
   const syms = S.positions.map(h => h.symbol);
   if (!syms.length) return;
 
-  // Show loading in holdings table
   const tbody = $('holdings-body');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner">Fetching quotes…</div></div></td></tr>`;
 
   try {
     const qs = await API.quotes(syms);
@@ -1554,7 +1525,6 @@ async function loadAll() {
 
 // ── EVENTS ──────────────────────────────────────────────────────
 function initEvents() {
-  // Tab navigation
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -1565,7 +1535,6 @@ function initEvents() {
     });
   });
 
-  // Period buttons
   document.querySelectorAll('.period-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
@@ -1575,7 +1544,6 @@ function initEvents() {
     });
   });
 
-  // Table sort
   document.querySelectorAll('thead th[data-s]').forEach(th => {
     th.addEventListener('click', () => {
       S.sortDir = S.sortCol === th.dataset.s ? S.sortDir * -1 : -1;
@@ -1584,37 +1552,25 @@ function initEvents() {
     });
   });
 
-  // Header buttons
   $('folio-pill')?.addEventListener('click', openFolioModal);
   $('btn-refresh')?.addEventListener('click', () => { Cache.clearQuotes(); loadAll(); toast('Refreshing quotes…', 'info'); });
   $('btn-settings')?.addEventListener('click', openSettings);
   $('btn-add-pos')?.addEventListener('click', openSettings);
   $('dash-create-btn')?.addEventListener('click', () => { openFolioModal(); });
 
-  // Folio modal
   $('btn-create-folio')?.addEventListener('click', createFolio);
 
-  // Settings
   $('save-settings')?.addEventListener('click', saveSettings);
   $('add-holding')?.addEventListener('click', () => {
     S.positions.push({ symbol:'', shares:0, avg_cost:0, folio_id: S.currentFolioId, color: null });
     renderEditor();
   });
-  $('btn-test-api')?.addEventListener('click', async () => {
-    const el = $('api-test-result');
-    el.textContent = 'Testing…';
-    const res = await API.test();
-    el.textContent = res.ok ? '✓ OK' : '✗ ' + res.error;
-    el.style.color = res.ok ? 'var(--gain)' : 'var(--loss)';
-  });
 
-  // Data buttons
   $('btn-export')?.addEventListener('click', exportJSON);
   $('btn-import')?.addEventListener('click', () => $('import-file').click());
   $('import-file')?.addEventListener('change', e => { if (e.target.files[0]) importJSON(e.target.files[0]); });
   $('btn-clear-cache')?.addEventListener('click', Cache.clearQuotes);
 
-  // Calculator
   $('btn-calc')?.addEventListener('click', runCalc);
   ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id => $(id)?.addEventListener('input', runCalc));
   $('drip-toggle')?.addEventListener('click', e => {
@@ -1623,7 +1579,6 @@ function initEvents() {
     runCalc();
   });
 
-  // Close overlays
   document.querySelectorAll('[data-close]').forEach(btn =>
     btn.addEventListener('click', () => closeOverlay(btn.dataset.close))
   );
@@ -1631,36 +1586,13 @@ function initEvents() {
     ov.addEventListener('click', e => { if (e.target === ov) closeOverlay(ov.id); })
   );
 
-  // Setup screen
-  $('setup-submit')?.addEventListener('click', handleSetup);
-  $('setup-sb-key')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('setup-av-key').focus(); });
-  $('setup-av-key')?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSetup(); });
-}
 
-// ── SETUP HANDLER ───────────────────────────────────────────────
-async function handleSetup() {
-  const sbKey = $('setup-sb-key').value.trim();
-  const avKey = $('setup-av-key').value.trim();
-
-  if (!sbKey) { $('setup-sb-key').style.borderColor = 'var(--loss)'; return; }
-  if (!avKey) { $('setup-av-key').style.borderColor = 'var(--loss)'; return; }
-
-  localStorage.setItem(KEY_SB, sbKey);
-  localStorage.setItem(KEY_AV, avKey);
-  S.avKey = avKey;
-
-  initDB(sbKey);
-  $('setup-screen').style.display  = 'none';
-  $('app-shell').style.display     = 'block';
-
-  await bootstrapApp();
 }
 
 // ── BOOTSTRAP ───────────────────────────────────────────────────
 async function bootstrapApp() {
   getBrowserId();
 
-  // Load portfolios
   try {
     S.portfolios = await DB.listPortfolios();
   } catch(e) {
@@ -1670,22 +1602,18 @@ async function bootstrapApp() {
 
   updateFolioPill();
 
-  // Validate saved folio still exists
+  // Validate saved folio still exists for this browser
   if (S.currentFolioId && !S.portfolios.find(p => p.id === S.currentFolioId)) {
     S.currentFolioId = null;
     localStorage.removeItem(KEY_FOLIO);
     updateFolioPill();
   }
 
-  // Pre-fill calc with portfolio total (if loaded later)
   runCalc();
-
-  // Load data
   await loadAll();
 
-  // If no portfolios, prompt to create one
   if (!S.portfolios.length) {
-    toast('No portfolios found. Create one to get started.', 'info');
+    toast('No portfolios yet — create one to get started.', 'info');
   }
 }
 
@@ -1693,19 +1621,23 @@ async function bootstrapApp() {
 function init() {
   initEvents();
 
-  const sbKey = localStorage.getItem(KEY_SB);
-  const avKey = localStorage.getItem(KEY_AV);
+  // Keys come from config.js (window.FOLIO_CONFIG) — never from the UI
+  const cfg    = window.FOLIO_CONFIG || {};
+  const sbKey  = cfg.SUPABASE_ANON_KEY || '';
+  const avKey  = cfg.AV_KEY || localStorage.getItem(KEY_AV) || '';
 
-  if (!sbKey || !avKey) {
+  if (!sbKey) {
+    // config.js is missing or SUPABASE_ANON_KEY is empty
+    console.error('[FOLIO] No SUPABASE_ANON_KEY found. Copy config.example.js → config.js and fill in your keys.');
     $('setup-screen').style.display = 'flex';
-    if (sbKey) $('setup-sb-key').value = sbKey;
-    if (avKey) $('setup-av-key').value = avKey;
+    $('app-shell').style.display    = 'none';
     return;
   }
 
   S.avKey = avKey;
-  initDB(sbKey);
+  if (avKey) localStorage.setItem(KEY_AV, avKey);  // persist AV key for Settings override
 
+  initDB(sbKey);
   $('setup-screen').style.display = 'none';
   $('app-shell').style.display    = 'block';
 

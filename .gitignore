@@ -1,0 +1,8 @@
+# Keys — never commit
+config.js
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
