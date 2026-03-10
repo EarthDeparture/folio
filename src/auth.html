@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In to FOLIO — Track Every Portfolio. Miss Nothing.</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────────── */
+:root {
+  --bg:      #060a14;
+  --surface: #0c1120;
+  --card:    rgba(255,255,255,0.04);
+  --border:  rgba(255,255,255,0.07);
+  --ba:      rgba(20,240,168,0.22);
+  --accent:  #14f0a8;
+  --adim:    rgba(20,240,168,0.1);
+  --gain:    #14f0a8;
+  --text:    #e8edf8;
+  --muted:   #5a6680;
+  --mono:    'JetBrains Mono', monospace;
+  --sans:    'Space Grotesk', sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { height:100%; }
+body {
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+a { color:var(--accent); text-decoration:none; }
+
+/* ──── AUTH CARD ──────────────────────────────────────────────── */
+.auth-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:48px 40px;
+  max-width:420px;
+  width:100%;
+  box-shadow:0 30px 80px rgba(0,0,0,.5);
+  position:relative;
+  overflow:hidden;
+}
+.auth-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, var(--ba), transparent);
+}
+
+/* ──── HEADER ──────────────────────────────────────────────────── */
+.auth-header {
+  text-align:center;
+  margin-bottom:32px;
+}
+.auth-logo {
+  font-size:28px; font-weight:700; letter-spacing:-.04em;
+  color:var(--accent); margin-bottom:8px; display:inline-block;
+}
+.auth-header h1 {
+  font-size:24px; font-weight:600; letter-spacing:-.03em; margin-bottom:8px;
+}
+.auth-header p {
+  color:var(--muted); font-size:14px; line-height:1.6;
+}
+
+/* ──── TABS ───────────────────────────────────────────────────── */
+.auth-tabs {
+  display:flex;
+  gap:4px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:4px;
+  margin-bottom:28px;
+}
+.auth-tab {
+  flex:1;
+  padding:12px 20px;
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  font-family:var(--sans);
+  font-size:14px;
+  font-weight:500;
+  border-radius:9px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.auth-tab.active {
+  background:var(--ba);
+  color:var(--accent);
+  font-weight:600;
+}
+
+/* ──── FORM ────────────────────────────────────────────────────── */
+.form-group { margin-bottom:20px; }
+.form-group label {
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+.form-input {
+  width:100%;
+  padding:14px 16px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text);
+  font-family:var(--mono);
+  font-size:14px;
+  outline:none;
+  transition:border-color .15s;
+}
+.form-input:focus {
+  border-color:var(--accent);
+}
+.form-input::placeholder { color:var(--muted); opacity:.5; }
+.form-input.error {
+  border-color:var(--loss);
+  box-shadow:0 0 0 3px rgba(240,72,110,.1);
+}
+
+/* ──── SUBMIT BUTTON ───────────────────────────────────────────── */
+.auth-submit {
+  width:100%;
+  padding:15px;
+  background:var(--accent);
+  color:#060a14;
+  border:none;
+  border-radius:11px;
+  font-family:var(--sans);
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all .18s;
+  margin-bottom:16px;
+}
+.auth-submit:hover {
+  background:#0fd899;
+  transform:translateY(-1px);
+  box-shadow:0 6px 24px rgba(20,240,168,.35);
+}
+.auth-submit:disabled {
+  opacity:.5;
+  cursor:not-allowed;
+  transform:none;
+}
+
+/* ──── LINKS ───────────────────────────────────────────────────── */
+.auth-footer {
+  text-align:center;
+  margin-top:24px;
+  font-size:13px;
+  color:var(--muted);
+}
+.auth-footer a {
+  color:var(--accent);
+  font-weight:600;
+}
+
+/* ──── ERROR MESSAGE ───────────────────────────────────────────── */
+.auth-error {
+  display:none;
+  background:rgba(240,72,110,.08);
+  border:1px solid rgba(240,72,110,.2);
+  border-radius:10px;
+  padding:14px 16px;
+  margin-bottom:20px;
+  text-align:center;
+}
+.auth-error.show { display:block; }
+.error-icon { color:var(--loss); font-size:16px; margin-bottom:4px; }
+.error-title { color:var(--loss); font-weight:600; font-size:14px; margin-bottom:2px; }
+.error-message { font-size:13px; color:var(--muted); }
+
+/* ──── LOADING ─────────────────────────────────────────────────── */
+.auth-loading {
+  display:none;
+  text-align:center;
+  padding:40px 20px;
+}
+.auth-loading.show { display:block; }
+.spinner {
+  width:40px; height:40px;
+  border:3px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+  margin:0 auto 16px;
+}
+.auth-loading p {
+  color:var(--muted);
+  font-size:14px;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ──── FOOTER LINK ─────────────────────────────────────────────── */
+.auth-footer-link {
+  display:block;
+  margin-top:16px;
+  text-align:center;
+  font-size:13px;
+  color:var(--muted);
+}
+.auth-footer-link a {
+  color:var(--accent);
+  font-weight:600;
+}
+
+/* ──── RESPONSIVE ─────────────────────────────────────────────── */
+@media (max-width:480px) {
+  .auth-card {
+    padding:36px 24px;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="auth-card">
+  <div class="auth-header">
+    <div class="auth-logo">FOLIO.</div>
+    <h1 id="auth-title">Sign In</h1>
+    <p id="auth-subtitle">Enter your email to access your portfolio</p>
+  </div>
+
+  <!-- Error Message -->
+  <div class="auth-error" id="auth-error">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title" id="error-title">Authentication Failed</div>
+    <div class="error-message" id="error-message">Something went wrong. Please try again.</div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="auth-loading" id="auth-loading">
+    <div class="spinner"></div>
+    <p id="loading-text">Loading...</p>
+  </div>
+
+  <!-- Auth Form -->
+  <form id="auth-form">
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" data-tab="signin">Sign In</button>
+      <button type="button" class="auth-tab" data-tab="signup">Sign Up</button>
+    </div>
+
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input type="email" id="email" class="form-input" placeholder="you@example.com" required autocomplete="email">
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+    </div>
+
+    <button type="submit" class="auth-submit" id="auth-submit">Sign In</button>
+  </form>
+
+  <div class="auth-footer">
+    <a href="/">← Back to home</a>
+  </div>
+
+  <a href="/" class="auth-footer-link">Return to homepage →</a>
+</div>
+
+<script type="module">
+import { showError, showLoading, signIn, signUp, resetForm, sb } from './auth.js';
+
+const titleEl = document.getElementById('auth-title');
+const subtitleEl = document.getElementById('auth-subtitle');
+const errorEl = document.getElementById('auth-error');
+const errorTitleEl = document.getElementById('error-title');
+const errorMessageEl = document.getElementById('error-message');
+const loadingEl = document.getElementById('auth-loading');
+const loadingTextEl = document.getElementById('loading-text');
+const formEl = document.getElementById('auth-form');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const submitBtn = document.getElementById('auth-submit');
+const tabs = document.querySelectorAll('.auth-tab');
+
+let currentMode = 'signin';
+
+// Handle tab switch
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentMode = tab.dataset.tab;
+    resetForm();
+
+    if (currentMode === 'signin') {
+      titleEl.textContent = 'Sign In';
+      subtitleEl.textContent = 'Enter your email to access your portfolio';
+      submitBtn.textContent = 'Sign In';
+    } else {
+      titleEl.textContent = 'Create Account';
+      subtitleEl.textContent = 'Get started in seconds. No credit card required.';
+      submitBtn.textContent = 'Create Account';
+    }
+  });
+});
+
+// Handle form submit
+formEl.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+
+  if (!email || !password) {
+    showError('Missing Information', 'Please fill in all fields');
+    return;
+  }
+
+  if (password.length < 6) {
+    showError('Invalid Password', 'Password must be at least 6 characters');
+    passwordInput.classList.add('error');
+    return;
+  }
+
+  emailInput.classList.remove('error');
+  passwordInput.classList.remove('error');
+
+  if (currentMode === 'signin') {
+    await signIn(email, password);
+  } else {
+    await signUp(email, password);
+  }
+});
+
+// Check URL for error
+const hash = window.location.hash;
+if (hash.includes('error_description')) {
+  const errorMatch = hash.match(/error_description=([^&]+)/);
+  if (errorMatch) {
+    const error = decodeURIComponent(errorMatch[1]);
+    showError('Authentication Error', error);
+    window.location.hash = '';
+  }
+}
+</script>
+
+</body>
+</html>

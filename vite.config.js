@@ -1,16 +1,25 @@
 import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
-  // Inject environment variables at build time
-  // The 'VITE_' prefix is required — variables without it are excluded
+  // Root is src/ so dev server routes map cleanly:
+  //   /              → src/index.html    (landing)
+  //   /auth.html     → src/auth.html     (sign in / sign up)
+  //   /dashboard.html→ src/dashboard.html(app)
+  root:      'src',
+  envDir:    '..',    // .env lives at project root, not inside src/
   envPrefix: 'VITE_',
+
   build: {
-    outDir: 'dist',
-    assetsDir: 'assets',
+    outDir:      '../dist',   // relative to root (src/), so output goes to project dist/
+    assetsDir:   'assets',
     emptyOutDir: true,
+
     rollupOptions: {
       input: {
-        main: '/src/index.html',
+        index:     resolve(__dirname, 'src/index.html'),
+        auth:      resolve(__dirname, 'src/auth.html'),
+        dashboard: resolve(__dirname, 'src/dashboard.html'),
       },
       output: {
         entryFileNames: 'assets/[name]-[hash].js',

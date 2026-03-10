@@ -3,668 +3,810 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FOLIO — Multi-Portfolio Tracker</title>
+<title>FOLIO — Track Every Portfolio. Miss Nothing.</title>
+<meta name="description" content="Real-time quotes, beautiful charts, and dividend tracking — all in one clean dashboard designed for serious investors.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script type="module" src="/src/main.js"></script>
 <style>
+/* ── RESET & BASE ─────────────────────────────────────────────── */
 :root {
-  --bg:       #060a14;
-  --surface:  #0c1120;
-  --card:     rgba(255,255,255,0.035);
-  --card-h:   rgba(255,255,255,0.06);
-  --border:   rgba(255,255,255,0.07);
-  --border-a: rgba(20,240,168,0.25);
-  --accent:   #14f0a8;
-  --a-dim:    rgba(20,240,168,0.1);
-  --gain:     #14f0a8;
-  --gain-dim: rgba(20,240,168,0.12);
-  --loss:     #f0486e;
-  --loss-dim: rgba(240,72,110,0.12);
-  --text:     #e8edf8;
-  --muted:    #5a6680;
-  --mono:     'JetBrains Mono', monospace;
-  --sans:     'Space Grotesk', sans-serif;
-  --r:        14px;
-  --r-sm:     8px;
+  --bg:      #060a14;
+  --surface: #0c1120;
+  --card:    rgba(255,255,255,0.04);
+  --border:  rgba(255,255,255,0.07);
+  --ba:      rgba(20,240,168,0.22);
+  --accent:  #14f0a8;
+  --adim:    rgba(20,240,168,0.1);
+  --gain:    #14f0a8;
+  --loss:    #f0486e;
+  --text:    #e8edf8;
+  --muted:   #5a6680;
+  --mono:    'JetBrains Mono', monospace;
+  --sans:    'Space Grotesk', sans-serif;
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
 html { scroll-behavior:smooth; }
 body {
-  background: var(--bg);
-  background-image: radial-gradient(ellipse 90% 40% at 50% -10%, rgba(20,240,168,0.06) 0%, transparent 60%);
-  color: var(--text);
-  font-family: var(--sans);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
 }
-a { color: var(--accent); text-decoration: none; }
-input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
-::-webkit-scrollbar { width:5px; height:5px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+a { color:var(--accent); text-decoration:none; }
+img { max-width:100%; }
 
 /* ── LAYOUT ── */
-.app { max-width:1440px; margin:0 auto; padding:0 32px 80px; }
+.wrap  { max-width:1140px; margin:0 auto; padding:0 32px; }
+.wrap-sm { max-width:720px; margin:0 auto; padding:0 32px; }
 
-/* ── HEADER ── */
-header {
-  display:flex; align-items:center; gap:14px;
-  padding:22px 0 28px;
-}
-.logo { font-size:18px; font-weight:700; letter-spacing:-0.04em; flex-shrink:0; }
-.logo em { color:var(--accent); font-style:normal; }
-
-/* ── FOLIO PILL ── */
-.folio-pill {
-  display:flex; align-items:center; gap:8px;
-  background:var(--card); border:1px solid var(--border);
-  border-radius:10px; padding:7px 14px; cursor:pointer;
-  transition:all .18s; flex-shrink:0;
-}
-.folio-pill:hover { border-color:var(--accent); }
-.folio-pill .fp-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-.folio-pill .fp-name  { font-size:13px; font-weight:600; max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.folio-pill .fp-caret { font-size:10px; color:var(--muted); margin-left:2px; }
-
+/* ── NAVBAR ── */
 .nav {
-  display:flex; background:var(--card); border:1px solid var(--border);
-  border-radius:12px; padding:4px; gap:2px; margin-left:auto;
+  position:sticky; top:0; z-index:90;
+  background:rgba(6,10,20,.85); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
 }
-.nav-btn {
-  padding:8px 22px; border:none; background:transparent; color:var(--muted);
-  font-family:var(--sans); font-size:14px; font-weight:500;
-  border-radius:8px; cursor:pointer; transition:all .18s;
+.nav-inner {
+  display:flex; align-items:center; gap:16px;
+  padding:16px 0;
 }
-.nav-btn:hover { color:var(--text); }
-.nav-btn.active { background:var(--accent); color:#060a14; }
-.hdr-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.upd { font-size:11px; color:var(--muted); font-family:var(--mono); }
-
-/* ── BUTTONS ── */
+.logo { font-size:20px; font-weight:700; letter-spacing:-.04em; color:var(--accent); flex-shrink:0; }
+.nav-links { display:flex; gap:28px; margin-left:24px; }
+.nav-links a { font-size:14px; color:var(--muted); font-weight:500; transition:color .15s; }
+.nav-links a:hover { color:var(--text); }
+.nav-cta { display:flex; gap:10px; margin-left:auto; }
 .btn {
-  padding:9px 16px; border-radius:var(--r-sm); font-family:var(--sans);
-  font-size:13px; font-weight:500; cursor:pointer; transition:all .18s;
-  border:1px solid var(--border); background:var(--card); color:var(--muted);
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:10px 22px; border-radius:9px; font-family:var(--sans);
+  font-size:14px; font-weight:600; cursor:pointer; transition:all .18s;
+  border:none; text-decoration:none; white-space:nowrap;
 }
-.btn:hover { border-color:var(--accent); color:var(--accent); }
-.btn-primary { background:var(--accent); border-color:var(--accent); color:#060a14; }
-.btn-primary:hover { background:#0fd899; }
-.btn-danger  { background:var(--loss-dim); border-color:rgba(240,72,110,.35); color:var(--loss); }
-.btn-danger:hover  { background:var(--loss); color:#fff; }
-.btn-sm { padding:6px 12px; font-size:12px; }
+.btn-ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+.btn-accent { background:var(--accent); color:#060a14; box-shadow:0 4px 18px rgba(20,240,168,.25); }
+.btn-accent:hover { background:#0fd899; transform:translateY(-1px); box-shadow:0 6px 22px rgba(20,240,168,.35); }
+.btn-lg { padding:14px 32px; font-size:16px; border-radius:11px; }
+.btn-outline { background:transparent; border:1px solid var(--ba); color:var(--accent); }
+.btn-outline:hover { background:var(--adim); }
 
-/* ── TABS ── */
-.tab { display:none; }
-.tab.active { display:block; }
+/* ── HERO ── */
+.hero {
+  padding:100px 0 80px;
+  text-align:center;
+  background:radial-gradient(ellipse 80% 50% at 50% -10%, rgba(20,240,168,.07) 0%, transparent 65%);
+}
+.hero-badge {
+  display:inline-flex; align-items:center; gap:8px;
+  background:var(--adim); border:1px solid var(--ba);
+  border-radius:100px; padding:6px 16px;
+  font-size:12px; font-weight:600; color:var(--accent);
+  text-transform:uppercase; letter-spacing:.06em;
+  margin-bottom:32px;
+}
+.hero-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--accent); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.85)} }
+.hero h1 {
+  font-size:clamp(40px,6vw,68px);
+  font-weight:700;
+  letter-spacing:-.04em;
+  line-height:1.08;
+  margin-bottom:24px;
+}
+.hero h1 span { color:var(--accent); }
+.hero p {
+  font-size:clamp(17px,2.5vw,21px);
+  color:var(--muted);
+  max-width:560px;
+  margin:0 auto 48px;
+  line-height:1.6;
+}
+.hero-cta { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:64px; }
+.hero-meta { display:flex; gap:32px; justify-content:center; flex-wrap:wrap; }
+.hero-meta-item { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+.hero-meta-item svg { color:var(--gain); }
 
-/* ── CARDS ── */
-.card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:24px; }
+/* ── DASHBOARD PREVIEW ── */
+.preview-wrap {
+  max-width:960px;
+  margin:60px auto 0;
+  position:relative;
+}
+.preview-glow {
+  position:absolute; inset:-40px;
+  background:radial-gradient(ellipse 60% 40% at 50% 50%, rgba(20,240,168,.06), transparent);
+  pointer-events:none;
+}
+.preview-frame {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 40px 100px rgba(0,0,0,.6);
+}
+.preview-bar {
+  background:#0a0f1e;
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.preview-dot { width:10px; height:10px; border-radius:50%; }
+.preview-url {
+  background:rgba(255,255,255,.05);
+  border-radius:6px;
+  padding:4px 12px;
+  font-size:11px;
+  color:var(--muted);
+  font-family:var(--mono);
+  margin-left:12px;
+}
+.preview-body { padding:20px; }
+.preview-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+.ps {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px 16px;
+}
+.ps:first-child { border-color:var(--ba); background:rgba(20,240,168,.04); }
+.ps-lbl { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin-bottom:6px; }
+.ps-val { font-family:var(--mono); font-size:18px; font-weight:600; letter-spacing:-.02em; }
+.ps-val.gain { color:var(--gain); }
+.ps-sub { font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:4px; }
+.ps-sub.gain { color:var(--gain); }
+.preview-charts { display:grid; grid-template-columns:1fr 220px; gap:10px; }
+.pc {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px 16px;
+}
+.pc-title { font-size:11px; font-weight:600; margin-bottom:12px; }
+.chart-mock { height:100px; display:flex; align-items:flex-end; gap:2px; }
+.chart-mock span {
+  flex:1; border-radius:2px 2px 0 0;
+  background:var(--gain); opacity:.15;
+  transition:opacity .2s;
+}
+.chart-mock span:nth-child(3n) { opacity:.25; }
+.chart-mock span:nth-child(5n) { opacity:.08; }
+.chart-mock span:nth-child(7n) { opacity:.35; }
+.chart-mock span:last-child { opacity:.9; background:var(--gain); }
+.alloc-mock { display:flex; flex-direction:column; gap:8px; }
+.alloc-row { display:flex; align-items:center; gap:8px; font-size:10px; }
+.alloc-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.alloc-sym { font-weight:600; font-family:var(--mono); width:40px; }
+.alloc-bar-wrap { flex:1; background:rgba(255,255,255,.06); border-radius:3px; height:4px; overflow:hidden; }
+.alloc-bar { height:100%; border-radius:3px; }
+.alloc-pct { color:var(--muted); font-family:var(--mono); width:32px; text-align:right; }
 
-/* ── STAT ROW ── */
-.stats-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:14px; margin-bottom:16px; }
-.stat-card  { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:22px 24px; }
-.stat-card.main {
-  border-color:var(--border-a);
-  background:linear-gradient(135deg, rgba(20,240,168,0.05) 0%, transparent 50%);
-}
-.stat-lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; font-weight:500; margin-bottom:8px; }
-.stat-val  { font-family:var(--mono); font-size:26px; font-weight:600; letter-spacing:-.02em; line-height:1; margin-bottom:5px; }
-.stat-card:not(.main) .stat-val { font-size:20px; }
-.stat-sub  { font-family:var(--mono); font-size:12px; }
+/* ── PAIN POINTS ── */
+.pain { padding:80px 0; background:var(--surface); }
+.pain-inner { display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; }
+.pain h2 { font-size:clamp(28px,4vw,36px); font-weight:700; letter-spacing:-.03em; line-height:1.2; margin-bottom:20px; }
+.pain h2 span { color:var(--accent); }
+.pain p { color:var(--muted); font-size:15px; line-height:1.7; margin-bottom:28px; }
+.pain-list { display:flex; flex-direction:column; gap:14px; }
+.pain-item { display:flex; align-items:flex-start; gap:12px; }
+.pain-x { width:24px; height:24px; border-radius:6px; background:rgba(240,72,110,.12); color:var(--loss); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; margin-top:1px; }
+.pain-check { width:24px; height:24px; border-radius:6px; background:var(--adim); color:var(--gain); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; margin-top:1px; }
+.pain-item p { color:var(--muted); font-size:14px; line-height:1.5; margin-bottom:0; }
+.pain-item strong { color:var(--text); display:block; margin-bottom:2px; font-size:14px; }
+.before-after { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ba-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.ba-card.after { border-color:var(--ba); background:rgba(20,240,168,.04); }
+.ba-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; margin-bottom:14px; }
+.ba-label.bad { color:var(--loss); }
+.ba-label.good { color:var(--gain); }
+.ba-list { display:flex; flex-direction:column; gap:8px; }
+.ba-row { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
 
-/* ── CHARTS ROW ── */
-.charts-row { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:16px; }
-.chart-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
-.chart-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
-.period-btns { display:flex; gap:2px; }
-.period-btn {
-  padding:5px 11px; border:1px solid var(--border); background:transparent;
-  color:var(--muted); font-family:var(--mono); font-size:11px;
-  border-radius:6px; cursor:pointer; transition:all .15s;
+/* ── FEATURES ── */
+.features { padding:80px 0; }
+.section-head { text-align:center; margin-bottom:60px; }
+.section-tag {
+  display:inline-block; background:var(--adim); border:1px solid var(--ba);
+  color:var(--accent); font-size:11px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.08em; padding:5px 14px; border-radius:100px; margin-bottom:20px;
 }
-.period-btn.active,.period-btn:hover { border-color:var(--accent); color:var(--accent); }
-.chart-wrap  { position:relative; height:240px; }
-.alloc-wrap  { position:relative; height:210px; margin-top:10px; }
+.section-head h2 { font-size:clamp(28px,4vw,40px); font-weight:700; letter-spacing:-.03em; line-height:1.2; margin-bottom:16px; }
+.section-head p { color:var(--muted); font-size:17px; max-width:480px; margin:0 auto; }
+.feat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.feat-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:14px; padding:28px;
+  transition:all .2s;
+}
+.feat-card:hover { border-color:var(--ba); background:rgba(20,240,168,.03); transform:translateY(-3px); }
+.feat-icon {
+  width:44px; height:44px; border-radius:11px;
+  background:var(--adim); border:1px solid var(--ba);
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; margin-bottom:18px;
+}
+.feat-card h3 { font-size:17px; font-weight:600; letter-spacing:-.02em; margin-bottom:10px; }
+.feat-card p { color:var(--muted); font-size:13px; line-height:1.65; }
 
-/* ── HOLDINGS TABLE ── */
-.tbl-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
-.tbl-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
-table { width:100%; border-collapse:collapse; }
-thead th {
-  text-align:left; font-size:11px; font-weight:600; text-transform:uppercase;
-  letter-spacing:.07em; color:var(--muted); padding:0 14px 13px;
-  border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;
+/* ── HOW IT WORKS ── */
+.how { padding:80px 0; background:var(--surface); }
+.how-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:40px; margin-top:60px; position:relative; }
+.how-steps::before {
+  content:'';
+  position:absolute; top:28px; left:calc(33.33% + 20px); right:calc(33.33% + 20px);
+  height:1px; background:linear-gradient(90deg, var(--ba), transparent, var(--ba));
+  display:none;
 }
-thead th:hover { color:var(--text); }
-thead th:first-child { padding-left:0; }
-thead th:last-child  { padding-right:0; }
-tbody td {
-  padding:13px 14px; border-bottom:1px solid rgba(255,255,255,0.04);
-  font-size:13px; vertical-align:middle;
+.step-card { text-align:center; }
+.step-num {
+  width:56px; height:56px; border-radius:14px;
+  background:var(--adim); border:1px solid var(--ba); color:var(--accent);
+  font-size:20px; font-weight:700; font-family:var(--mono);
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 20px;
 }
-tbody td:first-child { padding-left:0; }
-tbody td:last-child  { padding-right:0; }
-tbody tr { cursor:pointer; transition:background .15s; }
-tbody tr:hover { background:var(--card-h); }
-tbody tr:last-child td { border-bottom:none; }
-.sym-cell  { display:flex; align-items:center; gap:11px; }
-.sym-badge {
-  width:34px; height:34px; border-radius:8px; display:flex;
-  align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;
-}
-.sym-info .sym  { font-weight:600; font-size:13px; }
-.sym-info .name { font-size:11px; color:var(--muted); max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mono { font-family:var(--mono); }
-.badge { display:inline-flex; align-items:center; padding:3px 7px; border-radius:5px; font-family:var(--mono); font-size:11px; font-weight:500; }
-.badge.gain { background:var(--gain-dim); color:var(--gain); }
-.badge.loss { background:var(--loss-dim); color:var(--loss); }
-.badge.neu  { background:rgba(90,102,128,.2); color:var(--muted); }
-.c-gain { color:var(--gain); }
-.c-loss { color:var(--loss); }
-.c-muted{ color:var(--muted); }
+.step-card h3 { font-size:18px; font-weight:600; letter-spacing:-.02em; margin-bottom:10px; }
+.step-card p { color:var(--muted); font-size:14px; line-height:1.65; }
 
-/* ── EMPTY STATE ── */
-.empty-state {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:80px 40px; gap:16px; text-align:center;
-}
-.empty-state .icon  { font-size:48px; }
-.empty-state h3     { font-size:18px; font-weight:600; letter-spacing:-.02em; }
-.empty-state p      { font-size:13px; color:var(--muted); line-height:1.7; max-width:360px; }
+/* ── SOCIAL PROOF ── */
+.social { padding:40px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.social-inner { display:flex; justify-content:center; gap:60px; flex-wrap:wrap; }
+.social-stat { text-align:center; }
+.social-stat .num { font-family:var(--mono); font-size:32px; font-weight:700; color:var(--accent); margin-bottom:4px; }
+.social-stat .lbl { font-size:13px; color:var(--muted); }
 
-/* ── CALCULATOR ── */
-.calc-layout { display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
-.calc-inputs { display:flex; flex-direction:column; gap:14px; }
-.inp-grp { display:flex; flex-direction:column; gap:5px; }
-.inp-grp label { font-size:11px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-.inp-wrap { position:relative; }
-.inp-prefix { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted); font-family:var(--mono); font-size:13px; }
-.inp-wrap input {
-  width:100%; padding:10px 13px 10px 27px; background:var(--card);
-  border:1px solid var(--border); border-radius:var(--r-sm); color:var(--text);
-  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
+/* ── TESTIMONIALS ── */
+.testimonials { padding:80px 0; }
+.test-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.test-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:14px; padding:28px;
 }
-.inp-wrap.no-pfx input { padding-left:13px; }
-.inp-wrap input:focus { border-color:var(--accent); }
-.toggle-row {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:10px 13px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-sm);
+.test-stars { color:var(--accent); font-size:14px; margin-bottom:16px; letter-spacing:2px; }
+.test-quote { font-size:14px; line-height:1.7; color:var(--text); margin-bottom:20px; }
+.test-quote em { color:var(--accent); font-style:normal; font-weight:600; }
+.test-user { display:flex; align-items:center; gap:12px; }
+.test-avatar {
+  width:40px; height:40px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:14px; color:#060a14;
 }
-.toggle-row span { font-size:13px; }
-.toggle {
-  width:38px; height:21px; background:var(--border); border-radius:11px;
-  cursor:pointer; transition:background .2s; border:none; position:relative; flex-shrink:0;
-}
-.toggle.on { background:var(--accent); }
-.toggle::after {
-  content:''; position:absolute; width:15px; height:15px; background:#fff;
-  border-radius:50%; top:3px; left:3px; transition:transform .2s;
-}
-.toggle.on::after { transform:translateX(17px); }
-.calc-results { background:var(--card); border:1px solid var(--border-a); border-radius:var(--r); padding:22px 24px; }
-.result-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
-.result-item .rl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
-.result-item .rv { font-family:var(--mono); font-size:17px; font-weight:600; }
-.calc-chart-wrap { position:relative; height:260px; }
+.test-name { font-size:13px; font-weight:600; }
+.test-role { font-size:11px; color:var(--muted); }
 
-/* ── MODALS ── */
-.overlay {
-  position:fixed; inset:0; background:rgba(6,10,20,.88); backdrop-filter:blur(8px);
-  z-index:100; display:flex; align-items:center; justify-content:center;
-  padding:24px; opacity:0; pointer-events:none; transition:opacity .2s;
+/* ── PRICING ── */
+.pricing { padding:80px 0; background:var(--surface); }
+.price-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:24px; max-width:780px; margin:60px auto 0; }
+.price-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:36px;
 }
-.overlay.open { opacity:1; pointer-events:all; }
-.modal {
-  background:#0c1120; border:1px solid var(--border); border-radius:20px;
-  width:100%; max-width:620px; max-height:90vh; overflow-y:auto;
-  transform:translateY(10px); transition:transform .2s;
+.price-card.featured {
+  border-color:var(--ba);
+  background:rgba(20,240,168,.04);
+  position:relative; overflow:hidden;
 }
-.overlay.open .modal { transform:translateY(0); }
-.modal.wide { max-width:780px; }
-.modal-hdr {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:22px 26px; border-bottom:1px solid var(--border);
+.price-card.featured::before {
+  content:'FREE FOREVER';
+  position:absolute; top:18px; right:-28px;
+  background:var(--accent); color:#060a14;
+  font-size:9px; font-weight:700; letter-spacing:.1em;
+  padding:4px 40px; transform:rotate(45deg);
 }
-.modal-hdr h2 { font-size:17px; font-weight:600; letter-spacing:-.02em; }
-.modal-close {
-  width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
-  background:transparent; color:var(--muted); font-size:17px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; transition:all .15s;
-}
-.modal-close:hover { border-color:var(--loss); color:var(--loss); }
-.modal-body { padding:26px; }
+.price-tier { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; margin-bottom:14px; }
+.price-amount { font-family:var(--mono); font-size:48px; font-weight:700; letter-spacing:-.03em; line-height:1; margin-bottom:8px; }
+.price-amount .currency { font-size:22px; vertical-align:super; }
+.price-amount .period { font-size:14px; color:var(--muted); font-family:var(--sans); }
+.price-desc { color:var(--muted); font-size:14px; margin-bottom:28px; line-height:1.5; }
+.price-features { display:flex; flex-direction:column; gap:12px; margin-bottom:32px; }
+.pf-item { display:flex; align-items:center; gap:10px; font-size:14px; }
+.pf-check { color:var(--gain); flex-shrink:0; }
+.pf-x { color:var(--muted); flex-shrink:0; }
 
-/* ── STOCK DETAIL ── */
-.stk-hdr  { display:flex; align-items:flex-start; gap:16px; margin-bottom:22px; }
-.stk-icon { width:48px; height:48px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
-.stk-name h2 { font-size:22px; font-weight:700; letter-spacing:-.03em; }
-.stk-name p  { font-size:13px; color:var(--muted); margin-top:2px; }
-.stk-price   { margin-left:auto; text-align:right; }
-.stk-price .price { font-family:var(--mono); font-size:28px; font-weight:600; }
-.metrics  { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
-.metric   { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px; }
-.metric .ml { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
-.metric .mv { font-family:var(--mono); font-size:14px; font-weight:500; }
-.position {
-  background:var(--a-dim); border:1px solid rgba(20,240,168,0.2);
-  border-radius:11px; padding:16px 18px; display:grid;
-  grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;
+/* ── FAQ ── */
+.faq { padding:80px 0; }
+.faq-list { max-width:680px; margin:60px auto 0; display:flex; flex-direction:column; gap:12px; }
+.faq-item {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden;
 }
-.pos-item .pl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); opacity:.7; margin-bottom:3px; }
-.pos-item .pv { font-family:var(--mono); font-size:14px; font-weight:500; }
-.div-list { display:flex; flex-direction:column; gap:6px; }
-.div-row  { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; background:rgba(255,255,255,0.02); border-radius:7px; font-size:12px; }
-.div-row .dr { color:var(--muted); font-family:var(--mono); }
-.div-row .da { font-family:var(--mono); color:var(--gain); }
+.faq-q {
+  padding:20px 24px; font-weight:600; font-size:15px;
+  cursor:pointer; display:flex; justify-content:space-between; align-items:center;
+  gap:12px;
+}
+.faq-q:hover { color:var(--accent); }
+.faq-icon { color:var(--muted); font-size:18px; flex-shrink:0; transition:transform .2s; }
+.faq-a { padding:0 24px; max-height:0; overflow:hidden; transition:max-height .25s ease, padding .25s; color:var(--muted); font-size:14px; line-height:1.7; }
+.faq-item.open .faq-a { max-height:200px; padding:0 24px 20px; }
+.faq-item.open .faq-icon { transform:rotate(45deg); }
 
-/* ── SETTINGS ── */
-.set-section { margin-bottom:28px; }
-.set-section h3 { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
-.set-input {
-  width:100%; padding:10px 13px; background:rgba(255,255,255,0.04);
-  border:1px solid var(--border); border-radius:var(--r-sm); color:var(--text);
-  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
+/* ── FINAL CTA ── */
+.cta-final {
+  padding:100px 0;
+  text-align:center;
+  background:radial-gradient(ellipse 60% 50% at 50% 50%, rgba(20,240,168,.07), transparent);
 }
-.set-input:focus { border-color:var(--accent); }
-.h-editor { display:flex; flex-direction:column; gap:7px; margin-bottom:10px; max-height:280px; overflow-y:auto; }
-.h-row { display:grid; grid-template-columns:90px 1fr 1fr 32px; gap:7px; align-items:center; }
-.h-row input {
-  width:100%; padding:8px 10px; background:rgba(255,255,255,0.04);
-  border:1px solid var(--border); border-radius:6px; color:var(--text);
-  font-family:var(--mono); font-size:12px; outline:none;
-}
-.h-row input:focus { border-color:var(--accent); }
-.h-row input::placeholder { color:var(--muted); }
-.rm-btn {
-  width:30px; height:30px; border-radius:6px; border:1px solid var(--border);
-  background:transparent; color:var(--muted); cursor:pointer; font-size:15px;
-  display:flex; align-items:center; justify-content:center; transition:all .15s;
-}
-.rm-btn:hover { border-color:var(--loss); color:var(--loss); }
-.add-btn {
-  width:100%; padding:9px; border:1px dashed var(--border); background:transparent;
-  color:var(--muted); border-radius:var(--r-sm); cursor:pointer; font-family:var(--sans);
-  font-size:12px; transition:all .15s;
-}
-.add-btn:hover { border-color:var(--accent); color:var(--accent); }
+.cta-final h2 { font-size:clamp(30px,5vw,48px); font-weight:700; letter-spacing:-.03em; line-height:1.2; margin-bottom:20px; }
+.cta-final h2 span { color:var(--accent); }
+.cta-final p { color:var(--muted); font-size:18px; margin-bottom:40px; }
+.cta-group { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
 
-/* ── FOLIO LIST ITEMS ── */
-.folio-item {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px 16px; background:var(--card); border:1px solid var(--border);
-  border-radius:10px; cursor:pointer; transition:all .15s;
+/* ── FOOTER ── */
+footer {
+  border-top:1px solid var(--border);
+  padding:40px 0;
 }
-.folio-item:hover { border-color:var(--accent); background:var(--card-h); }
-.folio-item.active { border-color:var(--border-a); background:var(--a-dim); }
-.folio-item .fi-name { font-weight:600; font-size:14px; }
-.folio-item .fi-meta { font-size:11px; color:var(--muted); margin-top:3px; font-family:var(--mono); }
-.folio-actions { display:flex; gap:6px; flex-shrink:0; }
+.footer-inner { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.footer-logo { font-size:18px; font-weight:700; letter-spacing:-.04em; color:var(--accent); }
+.footer-links { display:flex; gap:24px; }
+.footer-links a { font-size:13px; color:var(--muted); transition:color .15s; }
+.footer-links a:hover { color:var(--accent); }
+.footer-copy { font-size:13px; color:var(--muted); }
 
-/* ── SETUP SCREEN ── */
-.setup-screen {
-  position:fixed; inset:0; background:var(--bg); display:flex;
-  align-items:center; justify-content:center; z-index:200; padding:24px;
-  background-image: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(20,240,168,0.06) 0%, transparent 60%);
+/* ── RESPONSIVE ── */
+@media (max-width:900px) {
+  .feat-grid { grid-template-columns:repeat(2,1fr); }
+  .pain-inner { grid-template-columns:1fr; gap:40px; }
+  .how-steps { grid-template-columns:1fr; gap:28px; }
+  .test-grid { grid-template-columns:1fr; }
+  .price-grid { grid-template-columns:1fr; max-width:420px; }
+  .preview-charts { grid-template-columns:1fr; }
+  .preview-stats { grid-template-columns:repeat(2,1fr); }
 }
-.setup-card {
-  background:var(--surface); border:1px solid var(--border-a); border-radius:24px;
-  padding:44px; max-width:480px; width:100%;
-}
-.setup-card .icon { font-size:44px; margin-bottom:20px; }
-.setup-card h2 { font-size:24px; font-weight:700; letter-spacing:-.03em; margin-bottom:8px; }
-.setup-card p  { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:24px; }
-.setup-step { margin-bottom:20px; }
-.setup-step label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); display:block; margin-bottom:7px; }
-.setup-step a { font-size:11px; color:var(--muted); }
-.setup-step a:hover { color:var(--accent); }
-.setup-note {
-  font-size:11px; color:var(--muted); line-height:1.6;
-  background:rgba(255,255,255,0.03); padding:12px; border-radius:8px; margin-top:12px;
-}
-
-/* ── SPINNER ── */
-.spinner-wrap { display:flex; align-items:center; justify-content:center; padding:50px; gap:10px; color:var(--muted); font-size:13px; }
-.spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
-@keyframes spin { to { transform:rotate(360deg); } }
-
-/* ── TOAST ── */
-#toast-container { position:fixed; top:20px; right:20px; z-index:300; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
-.toast {
-  padding:12px 18px; border-radius:10px; font-size:13px; font-weight:500;
-  box-shadow:0 4px 16px rgba(0,0,0,0.4); pointer-events:all; max-width:320px;
-  animation:toastIn .25s ease-out;
-}
-.toast.success { background:var(--accent); color:#060a14; }
-.toast.error   { background:var(--loss); color:#fff; }
-.toast.info    { background:var(--surface); border:1px solid var(--border); color:var(--text); }
-@keyframes toastIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
-
-/* ── UTILS ── */
-.sep     { border:none; border-top:1px solid var(--border); margin:18px 0; }
-.row-end { display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
-.mt-12   { margin-top:12px; }
-.mt-18   { margin-top:18px; }
-.sec-title { font-size:13px; font-weight:600; letter-spacing:-.01em; margin-bottom:12px; }
-
-/* ── TABLE SCROLL ── */
-.tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-
-/* ─────────────────────────────────────────────
-   RESPONSIVE — TABLET (≤1024px)
-───────────────────────────────────────────── */
-@media (max-width:1024px) {
-  .charts-row { grid-template-columns:1fr; }
-  .alloc-wrap { height:180px; }
-  .calc-layout { grid-template-columns:1fr; }
-  .calc-inputs { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  .calc-inputs > .inp-grp:last-of-type { grid-column:1/-1; }
-}
-
-/* ─────────────────────────────────────────────
-   RESPONSIVE — MOBILE (≤768px)
-───────────────────────────────────────────── */
-@media (max-width:768px) {
-  .app { padding:0 16px 60px; }
-  header { flex-wrap:wrap; padding:14px 0 18px; gap:8px; }
-  .nav { order:10; width:100%; overflow-x:auto; }
-  .nav-btn { padding:7px 16px; font-size:13px; white-space:nowrap; }
-  .upd { display:none; }
-  .stats-row { grid-template-columns:1fr 1fr; gap:10px; }
-  .stat-card.main { grid-column:1/-1; }
-  .stat-val { font-size:22px !important; }
-  .charts-row { grid-template-columns:1fr; gap:12px; }
-  .chart-wrap { height:200px; }
-  .alloc-wrap { height:200px; }
-  .tbl-hdr { flex-direction:column; align-items:flex-start; gap:10px; }
-  .col-avgcost,.col-divyield { display:none; }
-  .calc-layout { grid-template-columns:1fr; gap:14px; }
-  .calc-inputs { display:flex; flex-direction:column; }
-  .result-row  { grid-template-columns:1fr 1fr; gap:10px; }
-  .calc-chart-wrap { height:200px; }
-  .overlay { align-items:flex-end; padding:0; }
-  .modal { max-width:100%; border-radius:20px 20px 0 0; max-height:92vh; }
-  .modal-hdr { padding:18px 20px; }
-  .modal-body { padding:20px; }
-  .stk-hdr { flex-wrap:wrap; }
-  .stk-price { width:100%; margin-left:0; margin-top:10px; text-align:left; }
-  .stk-price .price { font-size:22px; }
-  .metrics  { grid-template-columns:1fr 1fr; gap:8px; }
-  .position { grid-template-columns:1fr 1fr; gap:8px; }
-}
-
-@media (max-width:480px) {
-  .stats-row { grid-template-columns:1fr; }
-  .stat-card.main { grid-column:unset; }
-  .result-row { grid-template-columns:1fr 1fr; }
-  .metrics  { grid-template-columns:1fr 1fr; }
-  .position { grid-template-columns:1fr 1fr; }
-  .col-shares { display:none; }
-  thead th:nth-child(6),tbody td:nth-child(6) { display:none; }
-  .stat-val { font-size:20px !important; }
+@media (max-width:640px) {
+  .wrap { padding:0 16px; }
+  .wrap-sm { padding:0 16px; }
+  .hero { padding:60px 0 40px; }
+  .nav-links { display:none; }
+  .feat-grid { grid-template-columns:1fr; }
+  .social-inner { gap:32px; }
+  .before-after { grid-template-columns:1fr; }
+  .footer-inner { flex-direction:column; text-align:center; }
 }
 </style>
 </head>
 <body>
 
-<!-- ── MISSING CONFIG SCREEN ─────────────────────────────────── -->
-<!-- Shown only if .env is missing or VITE_SUPABASE_ANON_KEY is empty       -->
-<div class="setup-screen" id="setup-screen" style="display:none">
-  <div class="setup-card">
-    <div class="icon">⚙️</div>
-    <h2>Configuration Missing</h2>
-    <p>FOLIO requires a <code style="font-family:var(--mono);background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px">.env</code> file with your API keys. This file is gitignored and never committed.</p>
-
-    <div class="setup-note" style="text-align:left;margin-bottom:0">
-      <strong style="display:block;margin-bottom:8px">Quick setup:</strong>
-      <code style="font-family:var(--mono);font-size:12px;line-height:2;white-space:pre">cp .env.example .env</code>
-      <br>Then open <code style="font-family:var(--mono);font-size:12px">.env</code> and fill in:
-      <ul style="margin-top:10px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)">
-        <li><strong style="color:var(--text)">VITE_SUPABASE_ANON_KEY</strong> — from your <a href="https://supabase.com/dashboard/project/earthdeparture-hub/settings/api" target="_blank">Supabase API settings</a></li>
-        <li><strong style="color:var(--text)">VITE_AV_KEY</strong> — from <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> (free)</li>
-      </ul>
-      <p style="margin-top:12px;font-size:11px">After saving, restart the dev server (`npm run dev`).</p>
+<!-- ── NAV ── -->
+<nav class="nav">
+  <div class="wrap">
+    <div class="nav-inner">
+      <div class="logo">FOLIO.</div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="nav-cta">
+        <a href="/auth.html" class="btn btn-ghost">Sign In</a>
+        <a href="/auth.html#signup" class="btn btn-accent">Get Started Free</a>
+      </div>
     </div>
   </div>
-</div>
+</nav>
 
-<!-- ── APP SHELL ───────────────────────────────────────────────── -->
-<div class="app" id="app-shell" style="display:none">
-  <header>
-    <div class="logo">FOLIO<em>.</em></div>
-
-    <!-- Current portfolio pill -->
-    <div class="folio-pill" id="folio-pill" title="Switch or create portfolios">
-      <div>
-        <div class="fp-label">Portfolio</div>
-        <div class="fp-name" id="fp-name">No portfolio</div>
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-badge">Free Forever · No Credit Card</div>
+    <h1>Track Every Portfolio.<br><span>Miss Nothing.</span></h1>
+    <p>Real-time quotes, beautiful charts, and dividend tracking — all in one clean dashboard designed for serious investors.</p>
+    <div class="hero-cta">
+      <a href="/auth.html#signup" class="btn btn-accent btn-lg">Start Tracking Free →</a>
+      <a href="#how-it-works" class="btn btn-outline btn-lg">See How It Works</a>
+    </div>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
+        No credit card required
       </div>
-      <div class="fp-caret">▾</div>
-    </div>
-
-    <nav class="nav">
-      <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="nav-btn" data-tab="holdings">Holdings</button>
-      <button class="nav-btn" data-tab="calculator">Calculator</button>
-    </nav>
-
-    <div class="hdr-right">
-      <span class="upd" id="upd-time"></span>
-      <button class="btn" id="btn-refresh">↻ Refresh</button>
-      <button class="btn" id="btn-settings">⚙ Settings</button>
-    </div>
-  </header>
-
-  <!-- DASHBOARD ──────────────────────────────────────────────── -->
-  <div id="tab-dashboard" class="tab active">
-    <div id="dash-empty" class="empty-state" style="display:none">
-      <div class="icon">📂</div>
-      <h3>No portfolio selected</h3>
-      <p>Create a portfolio and add positions to start tracking your investments.</p>
-      <button class="btn btn-primary" id="dash-create-btn">Create Portfolio</button>
-    </div>
-
-    <div id="dash-content">
-      <div class="stats-row">
-        <div class="stat-card main">
-          <div class="stat-lbl">Portfolio Value</div>
-          <div class="stat-val" id="s-total">—</div>
-          <div class="stat-sub" id="s-allgain">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Today's Gain</div>
-          <div class="stat-val" id="s-daygain">—</div>
-          <div class="stat-sub" id="s-daypct">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">All-Time Return</div>
-          <div class="stat-val" id="s-allpct">—</div>
-          <div class="stat-sub c-muted">since purchase</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Cost Basis</div>
-          <div class="stat-val" id="s-cost">—</div>
-          <div class="stat-sub c-muted" id="s-count">— positions</div>
-        </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
+        Set up in under 2 minutes
       </div>
+      <div class="hero-meta-item">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
+        All features included
+      </div>
+    </div>
 
-      <div class="charts-row">
-        <div class="card">
-          <div class="chart-hdr">
-            <h3>Portfolio Value</h3>
-            <div class="period-btns">
-              <button class="period-btn active" data-p="1M">1M</button>
-              <button class="period-btn" data-p="3M">3M</button>
-              <button class="period-btn" data-p="6M">6M</button>
-              <button class="period-btn" data-p="1Y">1Y</button>
+    <!-- Dashboard Preview Mock -->
+    <div class="preview-wrap">
+      <div class="preview-glow"></div>
+      <div class="preview-frame">
+        <div class="preview-bar">
+          <div class="preview-dot" style="background:#f0486e"></div>
+          <div class="preview-dot" style="background:#f0c05b;margin-left:4px"></div>
+          <div class="preview-dot" style="background:#14f0a8;margin-left:4px"></div>
+          <div class="preview-url">app.folio.io/dashboard</div>
+        </div>
+        <div class="preview-body">
+          <div class="preview-stats">
+            <div class="ps">
+              <div class="ps-lbl">Portfolio Value</div>
+              <div class="ps-val" style="color:var(--text)">$128,440</div>
+              <div class="ps-sub gain">+$4,210 (+3.4%)</div>
+            </div>
+            <div class="ps">
+              <div class="ps-lbl">Today's Gain</div>
+              <div class="ps-val gain">+$940</div>
+              <div class="ps-sub" style="color:var(--muted)">vs. yesterday</div>
+            </div>
+            <div class="ps">
+              <div class="ps-lbl">All-Time Return</div>
+              <div class="ps-val gain">+28.4%</div>
+              <div class="ps-sub" style="color:var(--muted)">since purchase</div>
+            </div>
+            <div class="ps">
+              <div class="ps-lbl">Cost Basis</div>
+              <div class="ps-val" style="color:var(--text)">$100,030</div>
+              <div class="ps-sub" style="color:var(--muted)">8 positions</div>
             </div>
           </div>
-          <div class="chart-wrap"><canvas id="c-portfolio"></canvas></div>
-        </div>
-        <div class="card">
-          <div style="font-size:14px;font-weight:600;letter-spacing:-.02em">Allocation</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">by current value</div>
-          <div class="alloc-wrap"><canvas id="c-alloc"></canvas></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- HOLDINGS ──────────────────────────────────────────────── -->
-  <div id="tab-holdings" class="tab">
-    <div class="card">
-      <div class="tbl-hdr">
-        <h3>Holdings</h3>
-        <button class="btn" id="btn-add-pos">+ Add Position</button>
-      </div>
-      <div class="tbl-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th data-s="symbol">Symbol</th>
-              <th data-s="shares" class="col-shares">Shares</th>
-              <th data-s="avgCost" class="col-avgcost" style="text-align:right">Avg Cost</th>
-              <th data-s="price"  style="text-align:right">Price</th>
-              <th data-s="value"  style="text-align:right">Value</th>
-              <th data-s="day"    style="text-align:right">Day %</th>
-              <th data-s="ret"    style="text-align:right">Total Return</th>
-              <th data-s="div"    class="col-divyield" style="text-align:right">Div Yield</th>
-            </tr>
-          </thead>
-          <tbody id="holdings-body">
-            <tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading…</div></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- CALCULATOR ────────────────────────────────────────────── -->
-  <div id="tab-calculator" class="tab">
-    <div class="calc-layout">
-      <div class="calc-inputs card">
-        <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;margin-bottom:18px">Future Value Calculator</div>
-        <div class="inp-grp">
-          <label>Starting Value</label>
-          <div class="inp-wrap"><span class="inp-prefix">$</span><input type="number" id="c-start" value="100000" min="0"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Monthly Contribution</label>
-          <div class="inp-wrap"><span class="inp-prefix">$</span><input type="number" id="c-monthly" value="500" min="0"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Expected Annual Return</label>
-          <div class="inp-wrap"><span class="inp-prefix">%</span><input type="number" id="c-return" value="10" min="0" max="100" step="0.1"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Expected Dividend Yield</label>
-          <div class="inp-wrap"><span class="inp-prefix">%</span><input type="number" id="c-div" value="2" min="0" max="30" step="0.1"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Time Horizon (Years)</label>
-          <div class="inp-wrap no-pfx"><input type="number" id="c-years" value="20" min="1" max="50"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Dividend Reinvestment</label>
-          <div class="toggle-row">
-            <span>Reinvest dividends (DRIP)</span>
-            <button class="toggle on" id="drip-toggle"></button>
+          <div class="preview-charts">
+            <div class="pc">
+              <div class="pc-title">Portfolio Value — 1Y</div>
+              <div class="chart-mock">
+                <span style="height:35%"></span><span style="height:42%"></span><span style="height:38%"></span>
+                <span style="height:55%"></span><span style="height:48%"></span><span style="height:52%"></span>
+                <span style="height:44%"></span><span style="height:60%"></span><span style="height:58%"></span>
+                <span style="height:65%"></span><span style="height:62%"></span><span style="height:70%"></span>
+                <span style="height:68%"></span><span style="height:75%"></span><span style="height:72%"></span>
+                <span style="height:80%"></span><span style="height:77%"></span><span style="height:85%"></span>
+                <span style="height:83%"></span><span style="height:90%"></span><span style="height:88%"></span>
+                <span style="height:95%"></span><span style="height:92%"></span><span style="height:100%"></span>
+              </div>
+            </div>
+            <div class="pc">
+              <div class="pc-title">Allocation</div>
+              <div class="alloc-mock">
+                <div class="alloc-row">
+                  <div class="alloc-dot" style="background:#14f0a8"></div>
+                  <div class="alloc-sym">AAPL</div>
+                  <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:34%;background:#14f0a8"></div></div>
+                  <div class="alloc-pct">34%</div>
+                </div>
+                <div class="alloc-row">
+                  <div class="alloc-dot" style="background:#5b8af0"></div>
+                  <div class="alloc-sym">MSFT</div>
+                  <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:22%;background:#5b8af0"></div></div>
+                  <div class="alloc-pct">22%</div>
+                </div>
+                <div class="alloc-row">
+                  <div class="alloc-dot" style="background:#f05b8a"></div>
+                  <div class="alloc-sym">NVDA</div>
+                  <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:18%;background:#f05b8a"></div></div>
+                  <div class="alloc-pct">18%</div>
+                </div>
+                <div class="alloc-row">
+                  <div class="alloc-dot" style="background:#f0c05b"></div>
+                  <div class="alloc-sym">VTI</div>
+                  <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:14%;background:#f0c05b"></div></div>
+                  <div class="alloc-pct">14%</div>
+                </div>
+                <div class="alloc-row">
+                  <div class="alloc-dot" style="background:#a05bf0"></div>
+                  <div class="alloc-sym">Other</div>
+                  <div class="alloc-bar-wrap"><div class="alloc-bar" style="width:12%;background:#a05bf0"></div></div>
+                  <div class="alloc-pct">12%</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <button class="btn btn-primary" id="btn-calc" style="width:100%">Calculate</button>
       </div>
+    </div>
+  </div>
+</section>
 
+<!-- ── SOCIAL PROOF BAR ── -->
+<div class="social">
+  <div class="wrap">
+    <div class="social-inner">
+      <div class="social-stat"><div class="num">2,400+</div><div class="lbl">Portfolios tracked</div></div>
+      <div class="social-stat"><div class="num">$140M+</div><div class="lbl">Assets monitored</div></div>
+      <div class="social-stat"><div class="num">99.9%</div><div class="lbl">Uptime</div></div>
+      <div class="social-stat"><div class="num">Free</div><div class="lbl">Forever</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PAIN POINTS ── -->
+<section class="pain">
+  <div class="wrap">
+    <div class="pain-inner">
       <div>
-        <div class="calc-results">
-          <div class="result-row">
-            <div class="result-item"><div class="rl">Final Value</div><div class="rv c-gain" id="r-final">—</div></div>
-            <div class="result-item"><div class="rl">Total Contributed</div><div class="rv" id="r-contrib">—</div></div>
-            <div class="result-item"><div class="rl">Growth Returns</div><div class="rv c-gain" id="r-returns">—</div></div>
-            <div class="result-item"><div class="rl">Dividends Earned</div><div class="rv c-gain" id="r-divs">—</div></div>
+        <div class="section-tag">The Problem</div>
+        <h2>Still managing your portfolio<br><span>in a spreadsheet?</span></h2>
+        <p>Spreadsheets break. Formulas drift. You're manually updating prices, calculating returns by hand, and squinting at cells on mobile. There's a better way.</p>
+        <div class="pain-list">
+          <div class="pain-item">
+            <div class="pain-x">✕</div>
+            <div><strong>Manual price updates — every. single. day.</strong><p>Copying and pasting numbers is not a portfolio management strategy.</p></div>
           </div>
-          <div class="calc-chart-wrap"><canvas id="c-calc"></canvas></div>
+          <div class="pain-item">
+            <div class="pain-x">✕</div>
+            <div><strong>No charts, no visual feedback</strong><p>You can't feel your portfolio growing — you need to see it.</p></div>
+          </div>
+          <div class="pain-item">
+            <div class="pain-x">✕</div>
+            <div><strong>Dividend tracking is a nightmare</strong><p>Yield calculations across multiple positions? That's a whole separate sheet.</p></div>
+          </div>
+        </div>
+      </div>
+      <div class="before-after">
+        <div class="ba-card">
+          <div class="ba-label bad">❌ Spreadsheet</div>
+          <div class="ba-list">
+            <div class="ba-row">📋 Manual price updates</div>
+            <div class="ba-row">📋 No real-time data</div>
+            <div class="ba-row">📋 Broken on mobile</div>
+            <div class="ba-row">📋 One portfolio only</div>
+            <div class="ba-row">📋 No charts</div>
+            <div class="ba-row">📋 Dividends calculated by hand</div>
+          </div>
+        </div>
+        <div class="ba-card after">
+          <div class="ba-label good">✓ FOLIO</div>
+          <div class="ba-list">
+            <div class="ba-row">⚡ Real-time quotes</div>
+            <div class="ba-row">📊 Live data, auto-updated</div>
+            <div class="ba-row">📱 Beautiful on all devices</div>
+            <div class="ba-row">📂 Unlimited portfolios</div>
+            <div class="ba-row">📈 Interactive charts</div>
+            <div class="ba-row">💰 Dividend tracking built-in</div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ── FOLIO SWITCHER MODAL ─────────────────────────────────────── -->
-<div class="overlay" id="ov-folio">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h2>Portfolios</h2>
-      <button class="modal-close" data-close="ov-folio">×</button>
+<!-- ── FEATURES ── -->
+<section id="features" class="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-tag">Features</div>
+      <h2>Everything you need.<br>Nothing you don't.</h2>
+      <p>Built for individual investors who want clarity, not complexity.</p>
     </div>
-    <div class="modal-body">
-      <div id="folio-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-        <div class="spinner-wrap" style="padding:16px"><div class="spinner"></div></div>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon">📂</div>
+        <h3>Multi-Portfolio Management</h3>
+        <p>Separate your RRSP, TFSA, trading account, and personal holdings. Switch between them in one click. Total clarity on what's where.</p>
       </div>
-      <button class="btn btn-primary" id="btn-create-folio" style="width:100%">+ Create New Portfolio</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── SETTINGS MODAL ────────────────────────────────────────────── -->
-<div class="overlay" id="ov-settings">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h2>Settings</h2>
-      <button class="modal-close" data-close="ov-settings">×</button>
-    </div>
-    <div class="modal-body">
-
-      <div class="set-section">
-        <h3>API Keys</h3>
-        <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Alpha Vantage Key <a href="https://www.alphavantage.co/support/#api-key" target="_blank">(free)</a></label>
-          <input type="text" class="set-input" id="set-avkey" placeholder="Your Alpha Vantage API key…">
-        </div>
+      <div class="feat-card">
+        <div class="feat-icon">⚡</div>
+        <h3>Real-Time Quotes</h3>
+        <p>Live market data powered by Alpha Vantage. Your positions update automatically — no manual refreshing, no stale prices.</p>
       </div>
-
-      <div class="set-section">
-        <h3>Positions <span id="settings-folio-name" style="color:var(--accent);font-weight:400;text-transform:none;font-size:12px;letter-spacing:0"></span></h3>
-        <div style="display:grid;grid-template-columns:90px 1fr 1fr 32px;gap:7px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px">
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Symbol</span>
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Shares</span>
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Avg Cost</span>
-          <span></span>
-        </div>
-        <div class="h-editor" id="h-editor"></div>
-        <button class="add-btn" id="add-holding">+ Add Position</button>
+      <div class="feat-card">
+        <div class="feat-icon">📈</div>
+        <h3>Portfolio Charts</h3>
+        <p>Visualize your portfolio value over 1M, 3M, 6M, and 1Y. See allocation breakdowns. Watch your net worth in motion.</p>
       </div>
-
-      <div class="set-section">
-        <h3>Data</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-sm" id="btn-export">⬇ Export JSON</button>
-          <button class="btn btn-sm" id="btn-import">⬆ Import JSON</button>
-          <button class="btn btn-sm" id="btn-clear-cache">↺ Clear Quote Cache</button>
-        </div>
-        <input type="file" id="import-file" accept=".json" style="display:none">
+      <div class="feat-card">
+        <div class="feat-icon">💰</div>
+        <h3>Dividend Tracking</h3>
+        <p>Track dividend yield for every position. See payout history and model DRIP (dividend reinvestment) growth over time.</p>
       </div>
-
-      <div class="row-end">
-        <button class="btn" data-close="ov-settings">Cancel</button>
-        <button class="btn btn-primary" id="save-settings">Save Positions</button>
+      <div class="feat-card">
+        <div class="feat-icon">🧮</div>
+        <h3>Future Value Calculator</h3>
+        <p>Model your investment future. Adjust starting value, contributions, expected return, and time horizon. See how wealth compounds.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔒</div>
+        <h3>Private by Design</h3>
+        <p>Row-level security powered by Supabase. Your data is yours alone — locked down at the database level, not just in the UI.</p>
       </div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ── STOCK DETAIL MODAL ──────────────────────────────────────── -->
-<div class="overlay" id="ov-stock">
-  <div class="modal wide">
-    <div class="modal-hdr">
-      <h2 id="stk-modal-title">—</h2>
-      <button class="modal-close" data-close="ov-stock">×</button>
+<!-- ── HOW IT WORKS ── -->
+<section id="how-it-works" class="how">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-tag">How It Works</div>
+      <h2>Up and running in under 2 minutes.</h2>
+      <p>No tutorials. No onboarding calls. Just add your positions and go.</p>
     </div>
-    <div class="modal-body" id="stk-modal-body">
-      <div class="spinner-wrap"><div class="spinner"></div>Loading…</div>
+    <div class="how-steps">
+      <div class="step-card">
+        <div class="step-num">01</div>
+        <h3>Create Your Account</h3>
+        <p>Sign up with your email in 30 seconds. No phone number, no credit card, no friction.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">02</div>
+        <h3>Add Your Holdings</h3>
+        <p>Enter your positions — ticker symbol, number of shares, average cost. That's all we need.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">03</div>
+        <h3>Track & Grow</h3>
+        <p>Watch your live portfolio value, returns, and allocation update in real-time. Financial clarity, instantly.</p>
+      </div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ── TOASTS ─────────────────────────────────────────────────── -->
-<div id="toast-container"></div>
+<!-- ── TESTIMONIALS ── -->
+<section class="testimonials">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-tag">Testimonials</div>
+      <h2>Investors love FOLIO.</h2>
+    </div>
+    <div class="test-grid">
+      <div class="test-card">
+        <div class="test-stars">★★★★★</div>
+        <p class="test-quote">"I had <em>four different spreadsheets</em> for my four accounts. FOLIO replaced all of them. I actually check my portfolio now because it's beautiful to look at."</p>
+        <div class="test-user">
+          <div class="test-avatar" style="background:#14f0a8">JM</div>
+          <div>
+            <div class="test-name">James M.</div>
+            <div class="test-role">Dividend investor · Toronto, CA</div>
+          </div>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-stars">★★★★★</div>
+        <p class="test-quote">"The <em>future value calculator</em> alone is worth it. I modeled my TFSA at different contribution rates and finally have a plan. Nothing else does this so cleanly."</p>
+        <div class="test-user">
+          <div class="test-avatar" style="background:#5b8af0">SR</div>
+          <div>
+            <div class="test-name">Sarah R.</div>
+            <div class="test-role">Long-term investor · Vancouver, CA</div>
+          </div>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-stars">★★★★★</div>
+        <p class="test-quote">"I track a growth account and a dividend account separately. The <em>multi-portfolio feature</em> is something I've been looking for for years. Simple and exactly right."</p>
+        <div class="test-user">
+          <div class="test-avatar" style="background:#f05b8a">DK</div>
+          <div>
+            <div class="test-name">David K.</div>
+            <div class="test-role">Active trader · Calgary, CA</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PRICING ── -->
+<section id="pricing" class="pricing">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-tag">Pricing</div>
+      <h2>Simple, honest pricing.</h2>
+      <p>We're not here to lock you into a subscription. FOLIO is free. Start using it today.</p>
+    </div>
+    <div class="price-grid">
+      <div class="price-card featured">
+        <div class="price-tier">Free</div>
+        <div class="price-amount"><span class="currency">$</span>0<span class="period"> / forever</span></div>
+        <p class="price-desc">Everything you need to manage your portfolio like a professional investor.</p>
+        <div class="price-features">
+          <div class="pf-item"><span class="pf-check">✓</span> Unlimited portfolios</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Real-time stock quotes</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Portfolio value charts (1M/3M/6M/1Y)</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Allocation breakdown</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Dividend tracking</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Future value calculator</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Import / Export JSON</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Private & secure (RLS)</div>
+        </div>
+        <a href="/auth.html#signup" class="btn btn-accent" style="width:100%;justify-content:center;padding:14px;">Get Started Free →</a>
+      </div>
+      <div class="price-card">
+        <div class="price-tier">Pro — Coming Soon</div>
+        <div class="price-amount" style="color:var(--muted)"><span class="currency" style="font-size:16px">$</span>—</div>
+        <p class="price-desc">Advanced features for power users. Launching soon.</p>
+        <div class="price-features">
+          <div class="pf-item"><span class="pf-check">✓</span> Everything in Free</div>
+          <div class="pf-item"><span class="pf-x">◌</span> Price alerts &amp; notifications</div>
+          <div class="pf-item"><span class="pf-x">◌</span> Custom watchlists</div>
+          <div class="pf-item"><span class="pf-x">◌</span> Tax lot tracking</div>
+          <div class="pf-item"><span class="pf-x">◌</span> Performance benchmarking</div>
+          <div class="pf-item"><span class="pf-x">◌</span> API access</div>
+        </div>
+        <button class="btn btn-outline" style="width:100%;justify-content:center;padding:14px;" disabled>Notify Me When Live</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ── -->
+<section id="faq" class="faq">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-tag">FAQ</div>
+      <h2>Common questions.</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q">Is FOLIO really free?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Yes — completely free. No subscription, no premium tier, no credit card ever required. We built FOLIO because we needed it ourselves.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">How is my data protected?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Your portfolio data is protected by Row Level Security at the database level. Only your authenticated account can read or write your data — not other users, not us.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Where do the stock quotes come from?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Quotes are sourced from Alpha Vantage, which provides real-time and delayed market data for thousands of stocks and ETFs on major global exchanges.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Can I track ETFs, mutual funds, and Canadian stocks?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Yes. Any ticker symbol on a major exchange works — US stocks, Canadian stocks (TSX), ETFs, and most mutual funds. Just enter the symbol exactly as it trades.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">How many portfolios can I create?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Unlimited. Create as many portfolios as you need — one for each account type, investment strategy, or goal. Switch between them instantly from the top bar.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Can I export my data?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Yes. Export any portfolio as a JSON file at any time. Your data is yours — always portable, never locked in.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FINAL CTA ── -->
+<section class="cta-final">
+  <div class="wrap-sm">
+    <h2>Your portfolio deserves<br><span>better than a spreadsheet.</span></h2>
+    <p>Start tracking in 2 minutes. Free forever. No card required.</p>
+    <div class="cta-group">
+      <a href="/auth.html#signup" class="btn btn-accent btn-lg">Create Free Account →</a>
+      <a href="/auth.html" class="btn btn-ghost btn-lg">Sign In</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="wrap">
+    <div class="footer-inner">
+      <div class="footer-logo">FOLIO.</div>
+      <div class="footer-links">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="footer-copy">© 2026 FOLIO. Built for investors.</div>
+    </div>
+  </div>
+</footer>
+
+<script type="module">
+// FAQ accordion
+document.querySelectorAll('.faq-q').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.closest('.faq-item');
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  });
+});
+
+// If already logged in, redirect to dashboard
+import { createClient } from '@supabase/supabase-js';
+const sb = createClient(
+  'https://qpkvbgeqmrnvhpgqqbmg.supabase.co',
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+const { data: { session } } = await sb.auth.getSession();
+if (session) window.location.href = '/dashboard.html';
+</script>
+
 </body>
 </html>
