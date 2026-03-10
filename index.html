@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FOLIO — Portfolio Tracker</title>
+<title>FOLIO — Multi-Portfolio Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root {
@@ -48,14 +49,27 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
 
 /* ── HEADER ── */
 header {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:26px 0 32px; gap:20px;
+  display:flex; align-items:center; gap:14px;
+  padding:22px 0 28px;
 }
-.logo { font-size:18px; font-weight:700; letter-spacing:-0.04em; }
+.logo { font-size:18px; font-weight:700; letter-spacing:-0.04em; flex-shrink:0; }
 .logo em { color:var(--accent); font-style:normal; }
+
+/* ── FOLIO PILL ── */
+.folio-pill {
+  display:flex; align-items:center; gap:8px;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:10px; padding:7px 14px; cursor:pointer;
+  transition:all .18s; flex-shrink:0;
+}
+.folio-pill:hover { border-color:var(--accent); }
+.folio-pill .fp-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.folio-pill .fp-name  { font-size:13px; font-weight:600; max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.folio-pill .fp-caret { font-size:10px; color:var(--muted); margin-left:2px; }
+
 .nav {
   display:flex; background:var(--card); border:1px solid var(--border);
-  border-radius:12px; padding:4px; gap:2px;
+  border-radius:12px; padding:4px; gap:2px; margin-left:auto;
 }
 .nav-btn {
   padding:8px 22px; border:none; background:transparent; color:var(--muted);
@@ -64,7 +78,7 @@ header {
 }
 .nav-btn:hover { color:var(--text); }
 .nav-btn.active { background:var(--accent); color:#060a14; }
-.hdr-right { display:flex; align-items:center; gap:10px; }
+.hdr-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .upd { font-size:11px; color:var(--muted); font-family:var(--mono); }
 
 /* ── BUTTONS ── */
@@ -76,44 +90,32 @@ header {
 .btn:hover { border-color:var(--accent); color:var(--accent); }
 .btn-primary { background:var(--accent); border-color:var(--accent); color:#060a14; }
 .btn-primary:hover { background:#0fd899; }
+.btn-danger  { background:var(--loss-dim); border-color:rgba(240,72,110,.35); color:var(--loss); }
+.btn-danger:hover  { background:var(--loss); color:#fff; }
+.btn-sm { padding:6px 12px; font-size:12px; }
 
 /* ── TABS ── */
 .tab { display:none; }
 .tab.active { display:block; }
 
 /* ── CARDS ── */
-.card {
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--r); padding:24px;
-}
+.card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:24px; }
 
 /* ── STAT ROW ── */
-.stats-row {
-  display:grid; grid-template-columns:2fr 1fr 1fr 1fr;
-  gap:14px; margin-bottom:16px;
-}
-.stat-card {
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--r); padding:22px 24px;
-}
+.stats-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:14px; margin-bottom:16px; }
+.stat-card  { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:22px 24px; }
 .stat-card.main {
   border-color:var(--border-a);
   background:linear-gradient(135deg, rgba(20,240,168,0.05) 0%, transparent 50%);
 }
-.stat-lbl {
-  font-size:11px; color:var(--muted); text-transform:uppercase;
-  letter-spacing:.07em; font-weight:500; margin-bottom:8px;
-}
-.stat-val {
-  font-family:var(--mono); font-size:26px; font-weight:600;
-  letter-spacing:-.02em; line-height:1; margin-bottom:5px;
-}
+.stat-lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; font-weight:500; margin-bottom:8px; }
+.stat-val  { font-family:var(--mono); font-size:26px; font-weight:600; letter-spacing:-.02em; line-height:1; margin-bottom:5px; }
 .stat-card:not(.main) .stat-val { font-size:20px; }
-.stat-sub { font-family:var(--mono); font-size:12px; }
+.stat-sub  { font-family:var(--mono); font-size:12px; }
 
 /* ── CHARTS ROW ── */
 .charts-row { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:16px; }
-.chart-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+.chart-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
 .chart-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
 .period-btns { display:flex; gap:2px; }
 .period-btn {
@@ -121,19 +123,18 @@ header {
   color:var(--muted); font-family:var(--mono); font-size:11px;
   border-radius:6px; cursor:pointer; transition:all .15s;
 }
-.period-btn.active, .period-btn:hover { border-color:var(--accent); color:var(--accent); }
-.chart-wrap { position:relative; height:240px; }
-.alloc-wrap { position:relative; height:210px; margin-top:10px; }
+.period-btn.active,.period-btn:hover { border-color:var(--accent); color:var(--accent); }
+.chart-wrap  { position:relative; height:240px; }
+.alloc-wrap  { position:relative; height:210px; margin-top:10px; }
 
 /* ── HOLDINGS TABLE ── */
-.tbl-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.tbl-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
 .tbl-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
 table { width:100%; border-collapse:collapse; }
 thead th {
   text-align:left; font-size:11px; font-weight:600; text-transform:uppercase;
   letter-spacing:.07em; color:var(--muted); padding:0 14px 13px;
-  border-bottom:1px solid var(--border); cursor:pointer; user-select:none;
-  white-space:nowrap;
+  border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;
 }
 thead th:hover { color:var(--text); }
 thead th:first-child { padding-left:0; }
@@ -147,25 +148,30 @@ tbody td:last-child  { padding-right:0; }
 tbody tr { cursor:pointer; transition:background .15s; }
 tbody tr:hover { background:var(--card-h); }
 tbody tr:last-child td { border-bottom:none; }
-.sym-cell { display:flex; align-items:center; gap:11px; }
+.sym-cell  { display:flex; align-items:center; gap:11px; }
 .sym-badge {
   width:34px; height:34px; border-radius:8px; display:flex;
-  align-items:center; justify-content:center; font-size:10px;
-  font-weight:700; flex-shrink:0;
+  align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;
 }
 .sym-info .sym  { font-weight:600; font-size:13px; }
 .sym-info .name { font-size:11px; color:var(--muted); max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mono { font-family:var(--mono); }
-.badge {
-  display:inline-flex; align-items:center; padding:3px 7px;
-  border-radius:5px; font-family:var(--mono); font-size:11px; font-weight:500;
-}
+.badge { display:inline-flex; align-items:center; padding:3px 7px; border-radius:5px; font-family:var(--mono); font-size:11px; font-weight:500; }
 .badge.gain { background:var(--gain-dim); color:var(--gain); }
 .badge.loss { background:var(--loss-dim); color:var(--loss); }
 .badge.neu  { background:rgba(90,102,128,.2); color:var(--muted); }
 .c-gain { color:var(--gain); }
 .c-loss { color:var(--loss); }
 .c-muted{ color:var(--muted); }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:80px 40px; gap:16px; text-align:center;
+}
+.empty-state .icon  { font-size:48px; }
+.empty-state h3     { font-size:18px; font-weight:600; letter-spacing:-.02em; }
+.empty-state p      { font-size:13px; color:var(--muted); line-height:1.7; max-width:360px; }
 
 /* ── CALCULATOR ── */
 .calc-layout { display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
@@ -183,8 +189,7 @@ tbody tr:last-child td { border-bottom:none; }
 .inp-wrap input:focus { border-color:var(--accent); }
 .toggle-row {
   display:flex; align-items:center; justify-content:space-between;
-  padding:10px 13px; background:var(--card); border:1px solid var(--border);
-  border-radius:var(--r-sm);
+  padding:10px 13px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-sm);
 }
 .toggle-row span { font-size:13px; }
 .toggle {
@@ -197,10 +202,7 @@ tbody tr:last-child td { border-bottom:none; }
   border-radius:50%; top:3px; left:3px; transition:transform .2s;
 }
 .toggle.on::after { transform:translateX(17px); }
-.calc-results {
-  background:var(--card); border:1px solid var(--border-a);
-  border-radius:var(--r); padding:22px 24px;
-}
+.calc-results { background:var(--card); border:1px solid var(--border-a); border-radius:var(--r); padding:22px 24px; }
 .result-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
 .result-item .rl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
 .result-item .rv { font-family:var(--mono); font-size:17px; font-weight:600; }
@@ -215,7 +217,7 @@ tbody tr:last-child td { border-bottom:none; }
 .overlay.open { opacity:1; pointer-events:all; }
 .modal {
   background:#0c1120; border:1px solid var(--border); border-radius:20px;
-  width:100%; max-width:680px; max-height:90vh; overflow-y:auto;
+  width:100%; max-width:620px; max-height:90vh; overflow-y:auto;
   transform:translateY(10px); transition:transform .2s;
 }
 .overlay.open .modal { transform:translateY(0); }
@@ -234,20 +236,14 @@ tbody tr:last-child td { border-bottom:none; }
 .modal-body { padding:26px; }
 
 /* ── STOCK DETAIL ── */
-.stk-hdr { display:flex; align-items:flex-start; gap:16px; margin-bottom:22px; }
-.stk-icon {
-  width:48px; height:48px; border-radius:11px; display:flex; align-items:center;
-  justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;
-}
+.stk-hdr  { display:flex; align-items:flex-start; gap:16px; margin-bottom:22px; }
+.stk-icon { width:48px; height:48px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
 .stk-name h2 { font-size:22px; font-weight:700; letter-spacing:-.03em; }
 .stk-name p  { font-size:13px; color:var(--muted); margin-top:2px; }
-.stk-price { margin-left:auto; text-align:right; }
+.stk-price   { margin-left:auto; text-align:right; }
 .stk-price .price { font-family:var(--mono); font-size:28px; font-weight:600; }
-.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
-.metric {
-  background:rgba(255,255,255,0.03); border:1px solid var(--border);
-  border-radius:10px; padding:12px;
-}
+.metrics  { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+.metric   { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px; }
 .metric .ml { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
 .metric .mv { font-family:var(--mono); font-size:14px; font-weight:500; }
 .position {
@@ -258,15 +254,12 @@ tbody tr:last-child td { border-bottom:none; }
 .pos-item .pl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); opacity:.7; margin-bottom:3px; }
 .pos-item .pv { font-family:var(--mono); font-size:14px; font-weight:500; }
 .div-list { display:flex; flex-direction:column; gap:6px; }
-.div-row {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:9px 12px; background:rgba(255,255,255,0.02); border-radius:7px; font-size:12px;
-}
+.div-row  { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; background:rgba(255,255,255,0.02); border-radius:7px; font-size:12px; }
 .div-row .dr { color:var(--muted); font-family:var(--mono); }
 .div-row .da { font-family:var(--mono); color:var(--gain); }
 
 /* ── SETTINGS ── */
-.set-section { margin-bottom:24px; }
+.set-section { margin-bottom:28px; }
 .set-section h3 { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
 .set-input {
   width:100%; padding:10px 13px; background:rgba(255,255,255,0.04);
@@ -274,7 +267,7 @@ tbody tr:last-child td { border-bottom:none; }
   font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
 }
 .set-input:focus { border-color:var(--accent); }
-.h-editor { display:flex; flex-direction:column; gap:7px; margin-bottom:10px; }
+.h-editor { display:flex; flex-direction:column; gap:7px; margin-bottom:10px; max-height:280px; overflow-y:auto; }
 .h-row { display:grid; grid-template-columns:90px 1fr 1fr 32px; gap:7px; align-items:center; }
 .h-row input {
   width:100%; padding:8px 10px; background:rgba(255,255,255,0.04);
@@ -296,161 +289,164 @@ tbody tr:last-child td { border-bottom:none; }
 }
 .add-btn:hover { border-color:var(--accent); color:var(--accent); }
 
-/* ── API PROMPT ── */
-.api-screen {
+/* ── FOLIO LIST ITEMS ── */
+.folio-item {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; background:var(--card); border:1px solid var(--border);
+  border-radius:10px; cursor:pointer; transition:all .15s;
+}
+.folio-item:hover { border-color:var(--accent); background:var(--card-h); }
+.folio-item.active { border-color:var(--border-a); background:var(--a-dim); }
+.folio-item .fi-name { font-weight:600; font-size:14px; }
+.folio-item .fi-meta { font-size:11px; color:var(--muted); margin-top:3px; font-family:var(--mono); }
+.folio-actions { display:flex; gap:6px; flex-shrink:0; }
+
+/* ── SETUP SCREEN ── */
+.setup-screen {
   position:fixed; inset:0; background:var(--bg); display:flex;
   align-items:center; justify-content:center; z-index:200; padding:24px;
+  background-image: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(20,240,168,0.06) 0%, transparent 60%);
 }
-.api-card {
-  background:var(--surface); border:1px solid var(--border-a); border-radius:20px;
-  padding:40px; max-width:460px; width:100%; text-align:center;
+.setup-card {
+  background:var(--surface); border:1px solid var(--border-a); border-radius:24px;
+  padding:44px; max-width:480px; width:100%;
 }
-.api-card .icon { font-size:44px; margin-bottom:18px; }
-.api-card h2 { font-size:22px; font-weight:700; letter-spacing:-.03em; margin-bottom:8px; }
-.api-card p { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:22px; }
+.setup-card .icon { font-size:44px; margin-bottom:20px; }
+.setup-card h2 { font-size:24px; font-weight:700; letter-spacing:-.03em; margin-bottom:8px; }
+.setup-card p  { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:24px; }
+.setup-step { margin-bottom:20px; }
+.setup-step label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); display:block; margin-bottom:7px; }
+.setup-step a { font-size:11px; color:var(--muted); }
+.setup-step a:hover { color:var(--accent); }
 
 /* ── SPINNER ── */
 .spinner-wrap { display:flex; align-items:center; justify-content:center; padding:50px; gap:10px; color:var(--muted); font-size:13px; }
 .spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 
+/* ── TOAST ── */
+#toast-container { position:fixed; top:20px; right:20px; z-index:300; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast {
+  padding:12px 18px; border-radius:10px; font-size:13px; font-weight:500;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4); pointer-events:all; max-width:320px;
+  animation:toastIn .25s ease-out;
+}
+.toast.success { background:var(--accent); color:#060a14; }
+.toast.error   { background:var(--loss); color:#fff; }
+.toast.info    { background:var(--surface); border:1px solid var(--border); color:var(--text); }
+@keyframes toastIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+
 /* ── UTILS ── */
-.sep { border:none; border-top:1px solid var(--border); margin:18px 0; }
+.sep     { border:none; border-top:1px solid var(--border); margin:18px 0; }
 .row-end { display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
-.mt-12 { margin-top:12px; }
-.mt-18 { margin-top:18px; }
+.mt-12   { margin-top:12px; }
+.mt-18   { margin-top:18px; }
 .sec-title { font-size:13px; font-weight:600; letter-spacing:-.01em; margin-bottom:12px; }
 
-/* ── TABLE SCROLL WRAPPER ── */
+/* ── TABLE SCROLL ── */
 .tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 
-/* ═════════════════════════════════════════════
+/* ─────────────────────────────────────────────
    RESPONSIVE — TABLET (≤1024px)
-═════════════════════════════════════════════ */
+───────────────────────────────────────────── */
 @media (max-width:1024px) {
   .charts-row { grid-template-columns:1fr; }
   .alloc-wrap { height:180px; }
   .calc-layout { grid-template-columns:1fr; }
   .calc-inputs { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  .calc-inputs > div:last-child { grid-column:1/-1; }
   .calc-inputs > .inp-grp:last-of-type { grid-column:1/-1; }
 }
 
-/* ═══════════════════════════════════════════════
+/* ─────────────────────────────────────────────
    RESPONSIVE — MOBILE (≤768px)
-═════════════════════════════════════════════ */
+───────────────────────────────────────────── */
 @media (max-width:768px) {
-  /* Layout */
   .app { padding:0 16px 60px; }
-
-  /* Header */
-  header {
-    flex-wrap:wrap; padding:14px 0 18px; gap:10px;
-    display:grid;
-    grid-template-columns:auto 1fr auto;
-    grid-template-rows:auto auto;
-    align-items:center;
-  }
-  .logo    { grid-column:1; grid-row:1; }
-  .hdr-right { grid-column:3; grid-row:1; gap:6px; }
-  .nav     { grid-column:1/-1; grid-row:2; width:100%; overflow-x:auto; justify-content:flex-start; }
-  .upd     { display:none; }
+  header { flex-wrap:wrap; padding:14px 0 18px; gap:8px; }
+  .nav { order:10; width:100%; overflow-x:auto; }
   .nav-btn { padding:7px 16px; font-size:13px; white-space:nowrap; }
-
-  /* Stats */
-  .stats-row {
-    grid-template-columns:1fr 1fr;
-    gap:10px;
-  }
+  .upd { display:none; }
+  .stats-row { grid-template-columns:1fr 1fr; gap:10px; }
   .stat-card.main { grid-column:1/-1; }
   .stat-val { font-size:22px !important; }
-
-  /* Charts */
   .charts-row { grid-template-columns:1fr; gap:12px; }
   .chart-wrap { height:200px; }
   .alloc-wrap { height:200px; }
-  .period-btns { gap:2px; }
-  .period-btn  { padding:4px 9px; font-size:10px; }
-
-  /* Holdings */
   .tbl-hdr { flex-direction:column; align-items:flex-start; gap:10px; }
-  .tbl-hdr button { width:100%; }
-  .sym-info .name { display:none; } /* hide company name on mobile */
-  thead th, tbody td { padding:10px 10px; }
-  /* Hide less critical columns on mobile */
-  .col-avgcost, .col-divyield { display:none; }
-
-  /* Calculator */
+  .col-avgcost,.col-divyield { display:none; }
   .calc-layout { grid-template-columns:1fr; gap:14px; }
   .calc-inputs { display:flex; flex-direction:column; }
   .result-row  { grid-template-columns:1fr 1fr; gap:10px; }
   .calc-chart-wrap { height:200px; }
-
-  /* Modals — slide up from bottom */
   .overlay { align-items:flex-end; padding:0; }
-  .modal {
-    max-width:100%; border-radius:20px 20px 0 0;
-    max-height:92vh;
-  }
-  .modal.wide { max-width:100%; }
-  .modal-hdr  { padding:18px 20px; }
+  .modal { max-width:100%; border-radius:20px 20px 0 0; max-height:92vh; }
+  .modal-hdr { padding:18px 20px; }
   .modal-body { padding:20px; }
-
-  /* Stock detail */
-  .stk-hdr    { flex-wrap:wrap; }
-  .stk-price  { width:100%; margin-left:0; margin-top:10px; text-align:left; }
+  .stk-hdr { flex-wrap:wrap; }
+  .stk-price { width:100%; margin-left:0; margin-top:10px; text-align:left; }
   .stk-price .price { font-size:22px; }
-  .metrics    { grid-template-columns:1fr 1fr; gap:8px; }
-  .position   { grid-template-columns:1fr 1fr; gap:8px; }
-
-  /* Settings editor */
-  .h-row { grid-template-columns:80px 1fr 1fr 30px; gap:5px; }
-  .h-editor { max-height:260px; overflow-y:auto; }
-
-  /* API prompt */
-  .api-card { padding:28px 20px; }
+  .metrics  { grid-template-columns:1fr 1fr; gap:8px; }
+  .position { grid-template-columns:1fr 1fr; gap:8px; }
 }
 
-/* ═════════════════════════════════════════════
-   RESPONSIVE — SMALL MOBILE (≤480px)
-═════════════════════════════════════════════ */
 @media (max-width:480px) {
   .stats-row { grid-template-columns:1fr; }
   .stat-card.main { grid-column:unset; }
   .result-row { grid-template-columns:1fr 1fr; }
   .metrics  { grid-template-columns:1fr 1fr; }
   .position { grid-template-columns:1fr 1fr; }
-  /* Show minimal table columns */
   .col-shares { display:none; }
-  thead th:nth-child(6), tbody td:nth-child(6) { display:none; } /* day% hidden */
+  thead th:nth-child(6),tbody td:nth-child(6) { display:none; }
   .stat-val { font-size:20px !important; }
 }
 </style>
 </head>
 <body>
 
-<!-- API Key Prompt -->
-<div class="api-screen" id="api-screen" style="display:none">
-  <div class="api-card">
+<!-- ── SETUP SCREEN (first run) ─────────────────────────────── -->
+<div class="setup-screen" id="setup-screen" style="display:none">
+  <div class="setup-card">
     <div class="icon">📈</div>
     <h2>Welcome to FOLIO</h2>
-    <p>Enter your free API key from <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> to pull live quotes, historical prices, and dividend data. Free accounts get 25 requests/day, or 500 with free key signup.</p>
-    <div class="inp-wrap no-pfx" style="margin-bottom:12px">
-      <input type="text" id="prompt-key" placeholder="Paste your Alpha Vantage API key…" class="set-input">
+    <p>Connect your data sources to get started. You only need to do this once — credentials are stored locally in your browser.</p>
+
+    <div class="setup-step">
+      <label>Supabase Anon Key <a href="https://supabase.com/dashboard/project/qpkvbgeqmrnvhpgqqbmg/settings/api" target="_blank">(get it here)</a></label>
+      <input type="text" id="setup-sb-key" class="set-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…">
     </div>
-    <button class="btn btn-primary" id="prompt-submit" style="width:100%">Get Started</button>
+
+    <div class="setup-step">
+      <label>Alpha Vantage API Key <a href="https://www.alphavantage.co/support/#api-key" target="_blank">(get it here — free)</a></label>
+      <input type="text" id="setup-av-key" class="set-input" placeholder="Your Alpha Vantage API key…">
+    </div>
+
+    <button class="btn btn-primary" id="setup-submit" style="width:100%;margin-top:4px">Launch FOLIO</button>
+    <p style="font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6">
+      Supabase stores your portfolios across devices. Alpha Vantage provides live quote data (25 calls/day free). Neither key is transmitted to any third party.
+    </p>
   </div>
 </div>
 
-<!-- App Shell -->
-<div class="app">
+<!-- ── APP SHELL ─────────────────────────────────────────────── -->
+<div class="app" id="app-shell" style="display:none">
   <header>
     <div class="logo">FOLIO<em>.</em></div>
+
+    <!-- Current portfolio pill -->
+    <div class="folio-pill" id="folio-pill" title="Switch or create portfolios">
+      <div>
+        <div class="fp-label">Portfolio</div>
+        <div class="fp-name" id="fp-name">No portfolio</div>
+      </div>
+      <div class="fp-caret">▾</div>
+    </div>
+
     <nav class="nav">
       <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
       <button class="nav-btn" data-tab="holdings">Holdings</button>
       <button class="nav-btn" data-tab="calculator">Calculator</button>
     </nav>
+
     <div class="hdr-right">
       <span class="upd" id="upd-time"></span>
       <button class="btn" id="btn-refresh">↻ Refresh</button>
@@ -458,53 +454,62 @@ tbody tr:last-child td { border-bottom:none; }
     </div>
   </header>
 
-  <!-- DASHBOARD -->
+  <!-- DASHBOARD ─────────────────────────────────────────── -->
   <div id="tab-dashboard" class="tab active">
-    <div class="stats-row">
-      <div class="stat-card main">
-        <div class="stat-lbl">Portfolio Value</div>
-        <div class="stat-val" id="s-total">—</div>
-        <div class="stat-sub" id="s-allgain">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-lbl">Today's Gain</div>
-        <div class="stat-val" id="s-daygain">—</div>
-        <div class="stat-sub" id="s-daypct">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-lbl">All-Time Return</div>
-        <div class="stat-val" id="s-allpct">—</div>
-        <div class="stat-sub c-muted">since purchase</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-lbl">Cost Basis</div>
-        <div class="stat-val" id="s-cost">—</div>
-        <div class="stat-sub c-muted" id="s-count">— positions</div>
-      </div>
+    <div id="dash-empty" class="empty-state" style="display:none">
+      <div class="icon">📂</div>
+      <h3>No portfolio selected</h3>
+      <p>Create a portfolio and add positions to start tracking your investments.</p>
+      <button class="btn btn-primary" id="dash-create-btn">Create Portfolio</button>
     </div>
 
-    <div class="charts-row">
-      <div class="card">
-        <div class="chart-hdr">
-          <h3>Portfolio Value</h3>
-          <div class="period-btns">
-            <button class="period-btn active" data-p="1M">1M</button>
-            <button class="period-btn" data-p="3M">3M</button>
-            <button class="period-btn" data-p="6M">6M</button>
-            <button class="period-btn" data-p="1Y">1Y</button>
-          </div>
+    <div id="dash-content">
+      <div class="stats-row">
+        <div class="stat-card main">
+          <div class="stat-lbl">Portfolio Value</div>
+          <div class="stat-val" id="s-total">—</div>
+          <div class="stat-sub" id="s-allgain">—</div>
         </div>
-        <div class="chart-wrap"><canvas id="c-portfolio"></canvas></div>
+        <div class="stat-card">
+          <div class="stat-lbl">Today's Gain</div>
+          <div class="stat-val" id="s-daygain">—</div>
+          <div class="stat-sub" id="s-daypct">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">All-Time Return</div>
+          <div class="stat-val" id="s-allpct">—</div>
+          <div class="stat-sub c-muted">since purchase</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">Cost Basis</div>
+          <div class="stat-val" id="s-cost">—</div>
+          <div class="stat-sub c-muted" id="s-count">— positions</div>
+        </div>
       </div>
-      <div class="card">
-        <div style="font-size:14px;font-weight:600;letter-spacing:-.02em">Allocation</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">by current value</div>
-        <div class="alloc-wrap"><canvas id="c-alloc"></canvas></div>
+
+      <div class="charts-row">
+        <div class="card">
+          <div class="chart-hdr">
+            <h3>Portfolio Value</h3>
+            <div class="period-btns">
+              <button class="period-btn active" data-p="1M">1M</button>
+              <button class="period-btn" data-p="3M">3M</button>
+              <button class="period-btn" data-p="6M">6M</button>
+              <button class="period-btn" data-p="1Y">1Y</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="c-portfolio"></canvas></div>
+        </div>
+        <div class="card">
+          <div style="font-size:14px;font-weight:600;letter-spacing:-.02em">Allocation</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">by current value</div>
+          <div class="alloc-wrap"><canvas id="c-alloc"></canvas></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- HOLDINGS -->
+  <!-- HOLDINGS ──────────────────────────────────────────── -->
   <div id="tab-holdings" class="tab">
     <div class="card">
       <div class="tbl-hdr">
@@ -512,62 +517,51 @@ tbody tr:last-child td { border-bottom:none; }
         <button class="btn" id="btn-add-pos">+ Add Position</button>
       </div>
       <div class="tbl-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th data-s="symbol">Symbol</th>
-            <th data-s="shares" class="col-shares">Shares</th>
-            <th data-s="avgCost" class="col-avgcost" style="text-align:right">Avg Cost</th>
-            <th data-s="price"   style="text-align:right">Price</th>
-            <th data-s="value"   style="text-align:right">Value</th>
-            <th data-s="day"     style="text-align:right">Day %</th>
-            <th data-s="ret"     style="text-align:right">Total Return</th>
-            <th data-s="div"     class="col-divyield" style="text-align:right">Div Yield</th>
-          </tr>
-        </thead>
-        <tbody id="holdings-body">
-          <tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading…</div></td></tr>
-        </tbody>
-      </table>
+        <table>
+          <thead>
+            <tr>
+              <th data-s="symbol">Symbol</th>
+              <th data-s="shares" class="col-shares">Shares</th>
+              <th data-s="avgCost" class="col-avgcost" style="text-align:right">Avg Cost</th>
+              <th data-s="price"  style="text-align:right">Price</th>
+              <th data-s="value"  style="text-align:right">Value</th>
+              <th data-s="day"    style="text-align:right">Day %</th>
+              <th data-s="ret"    style="text-align:right">Total Return</th>
+              <th data-s="div"    class="col-divyield" style="text-align:right">Div Yield</th>
+            </tr>
+          </thead>
+          <tbody id="holdings-body">
+            <tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading…</div></td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 
-  <!-- CALCULATOR -->
+  <!-- CALCULATOR ────────────────────────────────────────── -->
   <div id="tab-calculator" class="tab">
     <div class="calc-layout">
       <div class="calc-inputs card">
         <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;margin-bottom:18px">Future Value Calculator</div>
-
         <div class="inp-grp">
           <label>Starting Value</label>
-          <div class="inp-wrap"><span class="inp-prefix">$</span>
-            <input type="number" id="c-start" value="100000" min="0">
-          </div>
+          <div class="inp-wrap"><span class="inp-prefix">$</span><input type="number" id="c-start" value="100000" min="0"></div>
         </div>
         <div class="inp-grp">
           <label>Monthly Contribution</label>
-          <div class="inp-wrap"><span class="inp-prefix">$</span>
-            <input type="number" id="c-monthly" value="500" min="0">
-          </div>
+          <div class="inp-wrap"><span class="inp-prefix">$</span><input type="number" id="c-monthly" value="500" min="0"></div>
         </div>
         <div class="inp-grp">
           <label>Expected Annual Return</label>
-          <div class="inp-wrap"><span class="inp-prefix">%</span>
-            <input type="number" id="c-return" value="10" min="0" max="100" step="0.1">
-          </div>
+          <div class="inp-wrap"><span class="inp-prefix">%</span><input type="number" id="c-return" value="10" min="0" max="100" step="0.1"></div>
         </div>
         <div class="inp-grp">
           <label>Expected Dividend Yield</label>
-          <div class="inp-wrap"><span class="inp-prefix">%</span>
-            <input type="number" id="c-div" value="2" min="0" max="30" step="0.1">
-          </div>
+          <div class="inp-wrap"><span class="inp-prefix">%</span><input type="number" id="c-div" value="2" min="0" max="30" step="0.1"></div>
         </div>
         <div class="inp-grp">
           <label>Time Horizon (Years)</label>
-          <div class="inp-wrap no-pfx">
-            <input type="number" id="c-years" value="20" min="1" max="50">
-          </div>
+          <div class="inp-wrap no-pfx"><input type="number" id="c-years" value="20" min="1" max="50"></div>
         </div>
         <div class="inp-grp">
           <label>Dividend Reinvestment</label>
@@ -582,22 +576,10 @@ tbody tr:last-child td { border-bottom:none; }
       <div>
         <div class="calc-results">
           <div class="result-row">
-            <div class="result-item">
-              <div class="rl">Final Value</div>
-              <div class="rv c-gain" id="r-final">—</div>
-            </div>
-            <div class="result-item">
-              <div class="rl">Total Contributed</div>
-              <div class="rv" id="r-contrib">—</div>
-            </div>
-            <div class="result-item">
-              <div class="rl">Growth Returns</div>
-              <div class="rv c-gain" id="r-returns">—</div>
-            </div>
-            <div class="result-item">
-              <div class="rl">Dividends Earned</div>
-              <div class="rv c-gain" id="r-divs">—</div>
-            </div>
+            <div class="result-item"><div class="rl">Final Value</div><div class="rv c-gain" id="r-final">—</div></div>
+            <div class="result-item"><div class="rl">Total Contributed</div><div class="rv" id="r-contrib">—</div></div>
+            <div class="result-item"><div class="rl">Growth Returns</div><div class="rv c-gain" id="r-returns">—</div></div>
+            <div class="result-item"><div class="rl">Dividends Earned</div><div class="rv c-gain" id="r-divs">—</div></div>
           </div>
           <div class="calc-chart-wrap"><canvas id="c-calc"></canvas></div>
         </div>
@@ -606,7 +588,23 @@ tbody tr:last-child td { border-bottom:none; }
   </div>
 </div>
 
-<!-- Settings Modal -->
+<!-- ── FOLIO SWITCHER MODAL ──────────────────────────────── -->
+<div class="overlay" id="ov-folio">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2>Portfolios</h2>
+      <button class="modal-close" data-close="ov-folio">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="folio-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div>
+      </div>
+      <button class="btn btn-primary" id="btn-create-folio" style="width:100%">+ Create New Portfolio</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SETTINGS MODAL ────────────────────────────────────── -->
 <div class="overlay" id="ov-settings">
   <div class="modal">
     <div class="modal-hdr">
@@ -614,19 +612,25 @@ tbody tr:last-child td { border-bottom:none; }
       <button class="modal-close" data-close="ov-settings">×</button>
     </div>
     <div class="modal-body">
+
       <div class="set-section">
-        <h3>API Key</h3>
-        <input type="text" class="set-input" id="set-apikey" placeholder="Your Alpha Vantage API key…">
-        <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-          <button class="btn" id="btn-test-api">Test Connection</button>
+        <h3>API Keys</h3>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Alpha Vantage Key</label>
+          <input type="text" class="set-input" id="set-avkey" placeholder="Your Alpha Vantage API key…">
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Supabase Anon Key</label>
+          <input type="text" class="set-input" id="set-sbkey" placeholder="eyJhbGciO…">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" id="btn-test-api">Test AV Connection</button>
           <span id="api-test-result" style="font-size:12px;font-family:var(--mono)"></span>
         </div>
-        <p style="font-size:11px;color:var(--muted);margin-top:6px">
-          Free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> · 25 req/day · 5 calls/minute · Check browser console for full debug output
-        </p>
       </div>
+
       <div class="set-section">
-        <h3>Portfolio</h3>
+        <h3>Positions <span id="settings-folio-name" style="color:var(--accent);font-weight:400;text-transform:none;font-size:12px;letter-spacing:0"></span></h3>
         <div style="display:grid;grid-template-columns:90px 1fr 1fr 32px;gap:7px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px">
           <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Symbol</span>
           <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Shares</span>
@@ -636,15 +640,26 @@ tbody tr:last-child td { border-bottom:none; }
         <div class="h-editor" id="h-editor"></div>
         <button class="add-btn" id="add-holding">+ Add Position</button>
       </div>
+
+      <div class="set-section">
+        <h3>Data</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="btn-export">⬇ Export JSON</button>
+          <button class="btn btn-sm" id="btn-import">⬆ Import JSON</button>
+          <button class="btn btn-sm" id="btn-clear-cache">↺ Clear Quote Cache</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" style="display:none">
+      </div>
+
       <div class="row-end">
         <button class="btn" data-close="ov-settings">Cancel</button>
-        <button class="btn btn-primary" id="save-settings">Save</button>
+        <button class="btn btn-primary" id="save-settings">Save Positions</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Stock Detail Modal -->
+<!-- ── STOCK DETAIL MODAL ─────────────────────────────────── -->
 <div class="overlay" id="ov-stock">
   <div class="modal wide">
     <div class="modal-hdr">
@@ -657,15 +672,24 @@ tbody tr:last-child td { border-bottom:none; }
   </div>
 </div>
 
-<script>
-// ─────────────────────────────────────────────────────────────────
-// FOLIO · Alpha Vantage API · Single-Page Portfolio App
-// ─────────────────────────────────────────────────────────────────
+<!-- ── TOASTS ─────────────────────────────────────────────── -->
+<div id="toast-container"></div>
 
-const AV_BASE = 'https://www.alphavantage.co/query';
-const CACHE_Q = 5 * 60 * 1000;
-const CACHE_H = 24 * 60 * 60 * 1000;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+<script>
+// ═══════════════════════════════════════════════════════════════
+// FOLIO · Multi-Portfolio Tracker
+// Stack: Supabase (folio schema) + Alpha Vantage + Chart.js
+// ═══════════════════════════════════════════════════════════════
+
+// ── CONSTANTS ──────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://qpkvbgeqmrnvhpgqqbmg.supabase.co';
+const AV_BASE       = 'https://www.alphavantage.co/query';
+const CACHE_Q       = 5  * 60 * 1000;       // 5 min — quote cache TTL
+const CACHE_H       = 24 * 60 * 60 * 1000;  // 24h  — historical cache TTL
+const KEY_BROWSER   = 'folio_browser_id';
+const KEY_AV        = 'folio_av_key';
+const KEY_SB        = 'folio_sb_key';
+const KEY_FOLIO     = 'folio_current_id';
 
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
@@ -674,50 +698,71 @@ const COLORS = [
   '#5b90f0','#f0a05b','#5bf080','#f07a5b','#a0c05b',
 ];
 
-const DEFAULT = [
-  { symbol:'AAPL',  shares:10,  avgCost:150.00 },
-  { symbol:'MSFT',  shares:5,   avgCost:285.00 },
-  { symbol:'GOOGL', shares:3,   avgCost:140.00 },
-  { symbol:'AMZN',  shares:4,   avgCost:175.00 },
-  { symbol:'NVDA',  shares:8,   avgCost:450.00 },
-  { symbol:'JPM',   shares:10,  avgCost:170.00 },
-  { symbol:'V',     shares:12,  avgCost:240.00 },
-  { symbol:'JNJ',   shares:8,   avgCost:155.00 },
-  { symbol:'KO',    shares:15,  avgCost:58.00  },
-  { symbol:'O',     shares:20,  avgCost:55.00  },
-  { symbol:'T',     shares:30,  avgCost:19.00  },
-  { symbol:'SCHD',  shares:10,  avgCost:75.00  },
-  { symbol:'SPY',   shares:5,   avgCost:430.00 },
-  { symbol:'VZ',    shares:18,  avgCost:40.00  },
-  { symbol:'PG',    shares:7,   avgCost:140.00 },
-];
-
-// ── STATE ──────────────────────────────────────────────────────────
+// ── STATE ──────────────────────────────────────────────────────
 const S = {
-  apiKey:    localStorage.getItem('folio_key') || '',
-  portfolio: JSON.parse(localStorage.getItem('folio_port') || 'null') || DEFAULT,
-  quotes:    {},
-  period:    '1M',
-  sortCol:   'value',
-  sortDir:   -1,
-  drip:      true,
-  charts:    { port: null, alloc: null, calc: null, stock: null },
+  db:            null,          // Supabase client
+  avKey:         localStorage.getItem(KEY_AV) || '',
+  browserId:     null,          // lazy-init UUID
+  portfolios:    [],            // all portfolios for this browser
+  currentFolioId: localStorage.getItem(KEY_FOLIO) || null,
+  positions:     [],            // positions for current folio (DB rows, snake_case)
+  quotes:        {},            // { SYMBOL: quoteObj }
+  period:        '1M',
+  sortCol:       'value',
+  sortDir:       -1,
+  drip:          true,
+  charts:        { port:null, alloc:null, calc:null, stock:null },
 };
 
-// ── FORMAT ─────────────────────────────────────────────────────────
+// ── HELPERS ────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 const f = {
-  $: (n, d=2) => n == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d}).format(n),
-  pct: (n, d=2) => n == null ? '—' : `${n>=0?'+':''}${n.toFixed(d)}%`,
-  num: (n, d=0) => n == null ? '—' : n.toFixed(d),
-  compact: n => n == null ? '—' : new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(n),
-  date: s => new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+  $:       (n, d=2) => n == null ? '—' : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:d,maximumFractionDigits:d}).format(n),
+  pct:     (n, d=2) => n == null ? '—' : `${n>=0?'+':''}${n.toFixed(d)}%`,
+  num:     (n, d=0) => n == null ? '—' : n.toFixed(d),
+  compact: n        => n == null ? '—' : new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(n),
+  date:    s        => new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
 };
 const sign = n => n >= 0 ? 'gain' : 'loss';
-const $ = id => document.getElementById(id);
 
-// ── CACHE ──────────────────────────────────────────────────────────
+// ── BROWSER ID ─────────────────────────────────────────────────
+function getBrowserId() {
+  if (!S.browserId) {
+    S.browserId = localStorage.getItem(KEY_BROWSER);
+    if (!S.browserId) {
+      S.browserId = crypto.randomUUID();
+      localStorage.setItem(KEY_BROWSER, S.browserId);
+    }
+  }
+  return S.browserId;
+}
+
+// ── TOAST ──────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  $('toast-container').appendChild(el);
+  setTimeout(() => {
+    el.style.transition = 'opacity .25s, transform .25s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(12px)';
+    setTimeout(() => el.remove(), 260);
+  }, 3500);
+}
+
+// ── SUPABASE INIT ──────────────────────────────────────────────
+function initDB(key) {
+  S.db = window.supabase.createClient(SUPABASE_URL, key, {
+    db: { schema: 'folio' }
+  });
+  return S.db;
+}
+
+// ── LOCAL CACHE ─────────────────────────────────────────────────
 const Cache = {
-  set(k, d, ttl) { localStorage.setItem('folio_c_'+k, JSON.stringify({ d, exp: Date.now()+ttl })); },
+  set(k, d, ttl) { try { localStorage.setItem('folio_c_'+k, JSON.stringify({ d, exp: Date.now()+ttl })); } catch(e) {} },
   get(k) {
     try {
       const c = JSON.parse(localStorage.getItem('folio_c_'+k));
@@ -725,139 +770,193 @@ const Cache = {
     } catch {}
     return null;
   },
+  clearQuotes() {
+    Object.keys(localStorage).filter(k => k.startsWith('folio_c_q1_') || k.startsWith('folio_c_h_') || k.startsWith('folio_c_div_')).forEach(k => localStorage.removeItem(k));
+    toast('Quote cache cleared');
+  },
 };
 
-// ── API ────────────────────────────────────────────────────────────
+// ── DATABASE LAYER ─────────────────────────────────────────────
+// All positions from DB use snake_case (avg_cost, folio_id).
+// In-app, positions also keep avg_cost to stay consistent.
+const DB = {
+  // ── Portfolios ──────────────────────────────────────────────
+  async listPortfolios() {
+    const { data, error } = await S.db.from('portfolios')
+      .select('*')
+      .eq('browser_id', getBrowserId())
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createPortfolio(name) {
+    const { data, error } = await S.db.from('portfolios')
+      .insert({ browser_id: getBrowserId(), name })
+      .select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deletePortfolio(id) {
+    const { error } = await S.db.from('portfolios').delete().eq('id', id).eq('browser_id', getBrowserId());
+    if (error) throw error;
+  },
+
+  // ── Positions ───────────────────────────────────────────────
+  async listPositions(folioId) {
+    const { data, error } = await S.db.from('positions')
+      .select('*')
+      .eq('folio_id', folioId)
+      .order('symbol', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async upsertPosition(folioId, symbol, shares, avgCost, color) {
+    const { data, error } = await S.db.from('positions')
+      .upsert(
+        { folio_id: folioId, symbol: symbol.toUpperCase(), shares, avg_cost: avgCost, color, updated_at: new Date().toISOString() },
+        { onConflict: 'folio_id,symbol' }
+      )
+      .select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deletePosition(folioId, symbol) {
+    const { error } = await S.db.from('positions').delete().eq('folio_id', folioId).eq('symbol', symbol);
+    if (error) throw error;
+  },
+
+  // ── Quotes (shared cache) ───────────────────────────────────
+  async upsertQuote(q) {
+    // Fire-and-forget — don't block UI on quote cache write
+    S.db.from('quotes').upsert({
+      symbol:             q.symbol,
+      name:               q.name || null,
+      price:              q.price || null,
+      change:             q.change || null,
+      changes_percentage: q.changesPercentage || null,
+      market_cap:         q.marketCap || null,
+      pe:                 q.pe || null,
+      year_high:          q.yearHigh || null,
+      year_low:           q.yearLow || null,
+      dividend_yield:     q.dividendYield || null,
+      cached_at:          new Date().toISOString(),
+    }, { onConflict: 'symbol' }).then(({ error }) => {
+      if (error) console.warn('[FOLIO] Quote cache write failed:', error.message);
+    });
+  },
+
+  async getCachedQuote(symbol) {
+    const { data } = await S.db.from('quotes').select('*').eq('symbol', symbol).single();
+    return data;
+  },
+};
+
+// ── ALPHA VANTAGE API ──────────────────────────────────────────
 const API = {
-
-  // Low-level fetch with timeout, full logging
   async _fetch(url) {
-    const key = S.apiKey.trim();
-    const sep = url.includes('?') ? '&' : '?';
-    const fullUrl = `${url}${sep}apikey=${encodeURIComponent(key)}`;
-
-    const ctrl  = new AbortController();
+    const key = S.avKey.trim();
+    const fullUrl = `${url}&apikey=${encodeURIComponent(key)}`;
+    const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
-
     try {
-      console.log(`[FOLIO] GET ${fullUrl.replace(key,'***')}`);
-      const r = await fetch(fullUrl, {
-        signal: ctrl.signal,
-      });
+      const r = await fetch(fullUrl, { signal: ctrl.signal });
       clearTimeout(timer);
-
       const text = await r.text();
-      console.log(`[FOLIO] ${r.status} — ${text.slice(0,200)}`);
-
-      if (!r.ok) {
-        if (r.status === 429 || r.status === 403) {
-          throw new Error(`Rate limit reached (HTTP ${r.status}). Free Alpha Vantage: 25 calls/day or 5 calls/minute.`);
-        }
-        throw new Error(`HTTP ${r.status} — ${text.slice(0,120)}`);
-      }
-
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = JSON.parse(text);
       if (data['Error Message']) throw new Error(data['Error Message']);
-      if (data['Note']) throw new Error(data['Note']);
+      if (data['Note']) throw new Error('API rate limit: ' + data['Note']);
       return data;
-
     } catch(e) {
       clearTimeout(timer);
-      if (e.name === 'AbortError') throw new Error('Request timed out (>15s). Check your network.');
+      if (e.name === 'AbortError') throw new Error('Request timed out');
       throw e;
     }
   },
 
-  // Fetch one quote
   async _oneQuote(symbol) {
-    const k = `q1_${symbol}`;
-    const c = Cache.get(k);
-    if (c) return c;
+    const cKey = 'q1_' + symbol;
+    const cached = Cache.get(cKey);
+    if (cached) return cached;
 
     const d = await this._fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}`);
-    const quote = d?.['Global Quote'];
-    if (quote?.['01. symbol']) {
-      const q = {
-        symbol: quote['01. symbol'],
-        name: symbol,  // AV doesn't return name in quote
-        price: parseFloat(quote['05. price']),
-        change: parseFloat(quote['09. change']) || 0,
-        changesPercentage: parseFloat(quote['10. change percent']) || 0,
-        marketCap: quote['06. market cap'] || null,
-        pe: quote['07. pe ratio'] || null,
-        yearHigh: parseFloat(quote['02. high']) || null,
-        yearLow: parseFloat(quote['03. low']) || null,
-        dividendYield: parseFloat(quote['08. dividend yield']) || 0,
-      };
-      if (q.symbol) Cache.set(k, q, CACHE_Q);
-      return q;
-    }
-    return null;
+    const raw = d?.['Global Quote'];
+    if (!raw?.['01. symbol']) return null;
+
+    const q = {
+      symbol:             raw['01. symbol'],
+      name:               symbol,
+      price:              parseFloat(raw['05. price']),
+      change:             parseFloat(raw['09. change'])        || 0,
+      changesPercentage:  parseFloat(raw['10. change percent'])|| 0,
+      marketCap:          raw['06. market cap'] || null,
+      pe:                 raw['07. pe ratio']   || null,
+      yearHigh:           parseFloat(raw['03. high']) || null,
+      yearLow:            parseFloat(raw['04. low'])  || null,
+      dividendYield:      parseFloat(raw['08. dividend yield']) || 0,
+    };
+
+    Cache.set(cKey, q, CACHE_Q);
+    DB.upsertQuote(q);   // shared cache write (non-blocking)
+    return q;
   },
 
-  // Fetch all quotes — 3 concurrent at a time, 200ms gap between batches
+  // Fetch all quotes — 5 at a time, 12s gap to stay under 5/min limit
   async quotes(symbols) {
     const results = [];
-    for (let i = 0; i < symbols.length; i += 5) { // Alpha Vantage free: 5 calls/min
-      const chunk  = symbols.slice(i, i + 5);
-      const batch  = await Promise.all(
+    for (let i = 0; i < symbols.length; i += 5) {
+      const chunk = symbols.slice(i, i + 5);
+      const batch = await Promise.all(
         chunk.map(sym => this._oneQuote(sym).catch(e => {
-          console.error(`[FOLIO] Quote failed for ${sym}:`, e.message);
+          console.error(`[FOLIO] Quote failed ${sym}:`, e.message);
           return null;
         }))
       );
       results.push(...batch.filter(Boolean));
-      if (i + 5 < symbols.length) await sleep(12000); // 12 sec delay between batches (5 calls/min)
+      if (i + 5 < symbols.length) await sleep(12000);
     }
     return results;
   },
 
-  // Historical EOD prices
   async historical(symbol, from) {
-    const k = `h_${symbol}_${from}`;
-    const c = Cache.get(k);
-    if (c) return c;
+    const cKey = `h_${symbol}_${from}`;
+    const cached = Cache.get(cKey);
+    if (cached) return cached;
 
     const d = await this._fetch(`${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full`);
     const ts = d?.['Time Series (Daily)'];
     if (!ts) return [];
 
-    // Alpha Vantage returns: { "2024-01-01": {"1. open": ..., "4. close": ...} }
-    // Need to sort by date and filter
-    const dates = Object.keys(ts).sort().reverse();
-    const prices = dates
+    const prices = Object.keys(ts).sort().reverse()
       .filter(date => date >= from)
-      .map(date => ({
-        date,
-        close: parseFloat(ts[date]['4. close'])
-      }));
+      .map(date => ({ date, close: parseFloat(ts[date]['4. close']) }));
 
-    if (prices.length) Cache.set(k, prices, CACHE_H);
+    if (prices.length) Cache.set(cKey, prices, CACHE_H);
     return prices;
   },
 
-  // Dividends
   async dividends(symbol) {
-    const k = `div_${symbol}`;
-    const c = Cache.get(k);
-    if (c) return c;
+    const cKey = `div_${symbol}`;
+    const cached = Cache.get(cKey);
+    if (cached) return cached;
 
     const d = await this._fetch(`${AV_BASE}?function=DIVIDENDS&symbol=${symbol}`);
     const data = d?.data;
-    if (!data || !Array.isArray(data)) return [];
+    if (!Array.isArray(data)) return [];
 
-    // Alpha Vantage returns array of dividend objects
     const divs = data.map(div => ({
-      date: div.ex_dividend_date,
-      label: div.dividend_type || 'Dividend',
-      dividend: parseFloat(div.amount)
+      date:     div.ex_dividend_date,
+      label:    div.dividend_type || 'Dividend',
+      dividend: parseFloat(div.amount),
     }));
-
-    if (divs.length) Cache.set(k, divs, CACHE_H);
+    if (divs.length) Cache.set(cKey, divs, CACHE_H);
     return divs;
   },
 
-  // Quick test: one quote for AAPL, returns { ok, data, error }
   async test() {
     try {
       const d = await this._oneQuote('AAPL');
@@ -866,146 +965,135 @@ const API = {
       return { ok: false, error: e.message };
     }
   },
-
-  // Clear all cached quote data (call when API key changes)
-  clearQuoteCache() {
-    Object.keys(localStorage)
-      .filter(k => k.startsWith('folio_c_q1_'))
-      .forEach(k => localStorage.removeItem(k));
-  },
 };
 
-// ── PORTFOLIO MATH ─────────────────────────────────────────────────
+// ── PORTFOLIO MATH ─────────────────────────────────────────────
+// Positions from DB use snake_case: avg_cost, folio_id
 const Port = {
-  value()   { return S.portfolio.reduce((s,h) => s + (S.quotes[h.symbol]?.price||0)*h.shares, 0); },
-  cost()    { return S.portfolio.reduce((s,h) => s + h.avgCost*h.shares, 0); },
-  dayGain() { return S.portfolio.reduce((s,h) => s + (S.quotes[h.symbol]?.change||0)*h.shares, 0); },
-  rows()    {
-    return S.portfolio.map((h,i) => {
+  value()   { return S.positions.reduce((s,h) => s + (S.quotes[h.symbol]?.price || 0) * h.shares, 0); },
+  cost()    { return S.positions.reduce((s,h) => s + h.avg_cost * h.shares, 0); },
+  dayGain() { return S.positions.reduce((s,h) => s + (S.quotes[h.symbol]?.change || 0) * h.shares, 0); },
+
+  rows() {
+    return S.positions.map((h, i) => {
       const q   = S.quotes[h.symbol];
       const px  = q?.price ?? null;
-      const val = px != null ? px*h.shares : null;
-      const cost= h.avgCost*h.shares;
-      const ret = val != null ? ((val-cost)/cost)*100 : null;
-      const day = q?.changesPercentage ?? null;
-      const div = q?.dividendYield ? q.dividendYield*100 : 0;
-      return { ...h, px, val, cost, ret, day, div, name: q?.name||h.symbol, color: COLORS[i%COLORS.length] };
+      const val = px != null ? px * h.shares : null;
+      const cost = h.avg_cost * h.shares;
+      const ret  = val != null && cost > 0 ? ((val - cost) / cost) * 100 : null;
+      const day  = q?.changesPercentage ?? null;
+      const div  = q?.dividendYield ? q.dividendYield * 100 : 0;
+      return { ...h, avgCost: h.avg_cost, px, val, cost, ret, day, div, name: q?.name || h.symbol, color: h.color || COLORS[i % COLORS.length] };
     });
   },
 };
 
-// ── CHART HELPERS ──────────────────────────────────────────────────
-Chart.defaults.color         = '#5a6680';
-Chart.defaults.borderColor   = 'rgba(255,255,255,0.06)';
-Chart.defaults.font.family   = "'JetBrains Mono',monospace";
+// ── CHART HELPERS ───────────────────────────────────────────────
+Chart.defaults.color       = '#5a6680';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'JetBrains Mono',monospace";
 
-function lineColor(vals) {
-  return !vals.length || vals[vals.length-1] >= vals[0] ? '#14f0a8' : '#f0486e';
-}
-function lineGrad(ctx2, isGain) {
-  const g = ctx2.chart.ctx.createLinearGradient(0,0,0,240);
+function lineGrad(ctx, isGain) {
+  const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 240);
   g.addColorStop(0, isGain ? 'rgba(20,240,168,.15)' : 'rgba(240,72,110,.15)');
   g.addColorStop(1, 'rgba(0,0,0,0)');
   return g;
 }
-const tooltipBase = {
-  backgroundColor: '#0c1120',
-  borderColor: 'rgba(255,255,255,0.1)',
-  borderWidth: 1,
-  padding: 10,
-};
+
+const TT_BASE = { backgroundColor:'#0c1120', borderColor:'rgba(255,255,255,0.1)', borderWidth:1, padding:10 };
 
 function buildPortChart(labels, vals) {
   if (S.charts.port) S.charts.port.destroy();
-  const isGain = !vals.length || vals[vals.length-1] >= vals[0];
-  const col = isGain ? '#14f0a8' : '#f0486e';
+  const isGain = !vals.length || vals[vals.length - 1] >= vals[0];
+  const col    = isGain ? '#14f0a8' : '#f0486e';
   S.charts.port = new Chart($('c-portfolio'), {
-    type:'line',
-    data:{ labels, datasets:[{ data:vals, borderColor:col, borderWidth:1.5, pointRadius:0, fill:true,
-      backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }] },
-    options:{
+    type: 'line',
+    data: { labels, datasets: [{ data:vals, borderColor:col, borderWidth:1.5, pointRadius:0, fill:true, backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }] },
+    options: {
       responsive:true, maintainAspectRatio:false,
       interaction:{ mode:'index', intersect:false },
-      plugins:{ legend:{display:false}, tooltip:{ ...tooltipBase,
-        callbacks:{ label: c => ` ${f.$(c.parsed.y)}` }
-      }},
+      plugins:{ legend:{display:false}, tooltip:{ ...TT_BASE, callbacks:{ label: c => ` ${f.$(c.parsed.y)}` } } },
       scales:{
-        x:{ grid:{display:false}, ticks:{ maxTicksLimit:6, font:{size:10} }},
-        y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:10}, callback:v=>f.$(v,0) }},
-      }
-    }
+        x:{ grid:{display:false}, ticks:{ maxTicksLimit:6, font:{size:10} } },
+        y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:10}, callback: v => f.$(v,0) } },
+      },
+    },
   });
 }
 
 function buildAllocChart(rows) {
   if (S.charts.alloc) S.charts.alloc.destroy();
-  const data = [...rows].sort((a,b)=>(b.val||0)-(a.val||0));
+  const data = [...rows].sort((a,b) => (b.val||0) - (a.val||0));
   S.charts.alloc = new Chart($('c-alloc'), {
-    type:'doughnut',
-    data:{ labels:data.map(d=>d.symbol),
-      datasets:[{ data:data.map(d=>d.val||0), backgroundColor:data.map(d=>d.color),
-        borderColor:'#060a14', borderWidth:2, hoverOffset:4 }]
-    },
-    options:{
+    type: 'doughnut',
+    data: { labels: data.map(d => d.symbol), datasets: [{ data: data.map(d => d.val||0), backgroundColor: data.map(d => d.color), borderColor:'#060a14', borderWidth:2, hoverOffset:4 }] },
+    options: {
       responsive:true, maintainAspectRatio:false, cutout:'65%',
       plugins:{
-        legend:{ position:'bottom', labels:{ padding:10, boxWidth:9, boxHeight:9, font:{size:10}, color:'#5a6680' }},
-        tooltip:{ ...tooltipBase, callbacks:{ label:c=>{
-          const total = c.dataset.data.reduce((a,b)=>a+b,0);
-          return ` ${c.label}: ${f.$(c.raw)} (${f.num(c.raw/total*100,1)}%)`;
-        }}}
-      }
-    }
+        legend:{ position:'bottom', labels:{ padding:10, boxWidth:9, boxHeight:9, font:{size:10}, color:'#5a6680' } },
+        tooltip:{ ...TT_BASE, callbacks:{ label: c => {
+          const total = c.dataset.data.reduce((a,b) => a+b, 0);
+          return ` ${c.label}: ${f.$(c.raw)} (${f.num(c.raw / total * 100, 1)}%)`;
+        } } },
+      },
+    },
   });
 }
 
 function buildCalcChart(labels, contrib, portfolio, divs) {
   if (S.charts.calc) S.charts.calc.destroy();
   S.charts.calc = new Chart($('c-calc'), {
-    type:'line',
-    data:{ labels, datasets:[
-      { label:'Portfolio', data:portfolio, borderColor:'#14f0a8', borderWidth:2, pointRadius:0, fill:true, backgroundColor:'rgba(20,240,168,.07)', tension:.4 },
-      { label:'Contributed', data:contrib, borderColor:'#5b8af0', borderWidth:1.5, pointRadius:0, fill:false, borderDash:[4,4], tension:.4 },
-      { label:'Dividends', data:divs, borderColor:'#f0c05b', borderWidth:1.5, pointRadius:0, fill:false, tension:.4 },
-    ]},
-    options:{
+    type: 'line',
+    data: { labels, datasets: [
+      { label:'Portfolio',   data:portfolio, borderColor:'#14f0a8', borderWidth:2, pointRadius:0, fill:true, backgroundColor:'rgba(20,240,168,.07)', tension:.4 },
+      { label:'Contributed', data:contrib,   borderColor:'#5b8af0', borderWidth:1.5, pointRadius:0, fill:false, borderDash:[4,4], tension:.4 },
+      { label:'Dividends',   data:divs,      borderColor:'#f0c05b', borderWidth:1.5, pointRadius:0, fill:false, tension:.4 },
+    ] },
+    options: {
       responsive:true, maintainAspectRatio:false,
       interaction:{ mode:'index', intersect:false },
       plugins:{
-        legend:{ position:'bottom', labels:{ padding:14, boxWidth:9, boxHeight:9, font:{size:10} }},
-        tooltip:{ ...tooltipBase, callbacks:{ label:c=>` ${c.dataset.label}: ${f.$(c.parsed.y,0)}` }},
+        legend:{ position:'bottom', labels:{ padding:14, boxWidth:9, boxHeight:9, font:{size:10} } },
+        tooltip:{ ...TT_BASE, callbacks:{ label: c => ` ${c.dataset.label}: ${f.$(c.parsed.y,0)}` } },
       },
       scales:{
-        x:{ grid:{display:false}, ticks:{ font:{size:10} }},
-        y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:10}, callback:v=>f.compact(v) }},
-      }
-    }
+        x:{ grid:{display:false}, ticks:{ font:{size:10} } },
+        y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:10}, callback: v => f.compact(v) } },
+      },
+    },
   });
 }
 
-// ── RENDER DASHBOARD ───────────────────────────────────────────────
+// ── FOLIO PILL ─────────────────────────────────────────────────
+function updateFolioPill() {
+  const folio = S.portfolios.find(p => p.id === S.currentFolioId);
+  $('fp-name').textContent = folio ? folio.name : 'No portfolio';
+}
+
+// ── RENDER DASHBOARD ───────────────────────────────────────────
 function renderDash() {
+  const hasPortfolio = !!S.currentFolioId && S.positions.length > 0;
+  $('dash-empty').style.display   = !S.currentFolioId ? 'flex' : 'none';
+  $('dash-content').style.display = S.currentFolioId  ? 'block' : 'none';
+
+  if (!S.currentFolioId) return;
+
   const val    = Port.value();
   const cost   = Port.cost();
   const dayG   = Port.dayGain();
   const allG   = val - cost;
-  const dayPct = val>0 ? dayG/(val-dayG)*100 : 0;
-  const allPct = cost>0 ? allG/cost*100 : 0;
+  const dayPct = (val - dayG) > 0 ? dayG / (val - dayG) * 100 : 0;
+  const allPct = cost > 0 ? allG / cost * 100 : 0;
+  const gc = g => g >= 0 ? 'var(--gain)' : 'var(--loss)';
 
-  const set = (id, txt, col) => {
-    const el = $(id); if (!el) return;
-    el.textContent = txt;
-    if (col) el.style.color = col;
-  };
-
-  const gainCol = g => g>=0 ? 'var(--gain)' : 'var(--loss)';
-  set('s-total',   f.$(val),           gainCol(allG));
-  set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`, gainCol(allG));
-  set('s-daygain', f.$(dayG),          gainCol(dayG));
-  set('s-daypct',  f.pct(dayPct)+' vs. yesterday', gainCol(dayG));
-  set('s-allpct',  f.pct(allPct),      gainCol(allG));
+  const set = (id, txt, col) => { const el=$(id); if(!el) return; el.textContent=txt; if(col) el.style.color=col; };
+  set('s-total',   f.$(val),                              gc(allG));
+  set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`,    gc(allG));
+  set('s-daygain', f.$(dayG),                             gc(dayG));
+  set('s-daypct',  f.pct(dayPct) + ' vs. yesterday',     gc(dayG));
+  set('s-allpct',  f.pct(allPct),                        gc(allG));
   set('s-cost',    f.$(cost));
-  set('s-count',   `${S.portfolio.length} position${S.portfolio.length!==1?'s':''}`);
+  set('s-count',   `${S.positions.length} position${S.positions.length !== 1 ? 's' : ''}`);
 
   const lu = $('upd-time');
   if (lu) lu.textContent = `Updated ${new Date().toLocaleTimeString()}`;
@@ -1013,19 +1101,19 @@ function renderDash() {
   buildAllocChart(Port.rows());
 }
 
-// ── RENDER HOLDINGS ────────────────────────────────────────────────
+// ── RENDER HOLDINGS ─────────────────────────────────────────────
 function renderHoldings() {
   const tbody = $('holdings-body');
   if (!tbody) return;
 
   let rows = Port.rows();
-  rows.sort((a,b) => {
-    const va = a[S.sortCol]??0, vb = b[S.sortCol]??0;
-    return typeof va==='string' ? va.localeCompare(vb)*S.sortDir : (va-vb)*S.sortDir;
+  rows.sort((a, b) => {
+    const va = a[S.sortCol] ?? 0, vb = b[S.sortCol] ?? 0;
+    return typeof va === 'string' ? va.localeCompare(vb) * S.sortDir : (va - vb) * S.sortDir;
   });
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No positions. Add them in Settings.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No positions yet. Add them in Settings (⚙).</td></tr>`;
     return;
   }
 
@@ -1033,28 +1121,26 @@ function renderHoldings() {
     <tr data-sym="${h.symbol}">
       <td>
         <div class="sym-cell">
-          <div class="sym-badge" style="background:${h.color}1a;border:1px solid ${h.color}33;color:${h.color}">
-            ${h.symbol.slice(0,4)}
-          </div>
+          <div class="sym-badge" style="background:${h.color}1a;border:1px solid ${h.color}33;color:${h.color}">${h.symbol.slice(0,4)}</div>
           <div class="sym-info">
             <div class="sym">${h.symbol}</div>
             <div class="name">${h.name}</div>
           </div>
         </div>
       </td>
-      <td class="mono col-shares">${f.num(h.shares, h.shares%1===0?0:4)}</td>
-      <td class="mono col-avgcost" style="text-align:right">${f.$(h.avgCost)}</td>
+      <td class="mono col-shares">${f.num(h.shares, h.shares % 1 === 0 ? 0 : 4)}</td>
+      <td class="mono col-avgcost" style="text-align:right">${f.$(h.avg_cost)}</td>
       <td class="mono" style="text-align:right">${f.$(h.px)}</td>
       <td class="mono" style="text-align:right">${f.$(h.val)}</td>
       <td style="text-align:right">
-        <span class="badge ${h.day!=null?sign(h.day):'neu'}">${h.day!=null?f.pct(h.day):'—'}</span>
+        <span class="badge ${h.day != null ? sign(h.day) : 'neu'}">${h.day != null ? f.pct(h.day) : '—'}</span>
       </td>
       <td style="text-align:right">
-        <div class="mono ${h.ret!=null?'c-'+sign(h.ret):'c-muted'}">${h.ret!=null?f.pct(h.ret):'—'}</div>
-        <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val!=null?h.val-h.cost:null)}</div>
+        <div class="mono ${h.ret != null ? 'c-' + sign(h.ret) : 'c-muted'}">${h.ret != null ? f.pct(h.ret) : '—'}</div>
+        <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val != null ? h.val - h.cost : null)}</div>
       </td>
-      <td class="mono col-divyield" style="text-align:right;color:${h.div>0?'var(--gain)':'var(--muted)'}">
-        ${h.div>0?f.pct(h.div):'—'}
+      <td class="mono col-divyield" style="text-align:right;color:${h.div > 0 ? 'var(--gain)' : 'var(--muted)'}">
+        ${h.div > 0 ? f.pct(h.div) : '—'}
       </td>
     </tr>
   `).join('');
@@ -1064,314 +1150,425 @@ function renderHoldings() {
   );
 }
 
-// ── PORTFOLIO CHART (HISTORICAL) ───────────────────────────────────
+// ── PORTFOLIO CHART ─────────────────────────────────────────────
 async function loadPortChart(period) {
-  const days = { '1M':30,'3M':90,'6M':182,'1Y':365 }[period]||30;
-  const from = new Date(Date.now()-days*86400000).toISOString().split('T')[0];
-  const syms = S.portfolio.map(h=>h.symbol);
-
+  if (!S.positions.length) return;
+  const days = { '1M':30,'3M':90,'6M':182,'1Y':365 }[period] || 30;
+  const from = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+  const syms = S.positions.map(h => h.symbol);
   const allHist = {};
+
   for (const sym of syms) {
-    try {
-      allHist[sym] = await API.historical(sym, from);
-    } catch(e) {
-      console.warn('Portfolio chart failed for', sym, e.message);
-      allHist[sym] = [];
-    }
+    try { allHist[sym] = await API.historical(sym, from); }
+    catch(e) { console.warn('Port chart skip:', sym, e.message); allHist[sym] = []; }
   }
 
-  const dates = Object.values(allHist).length
-    ? Object.keys(allHist[0] || {}).sort().reverse()
-    : [];
+  // Build unified date index from first symbol with data
+  const sample = Object.values(allHist).find(a => a.length) || [];
+  const dates  = sample.map(d => d.date);
 
   if (dates.length < 2) {
     buildPortChart(['Start','Now'], [Port.cost(), Port.value()]);
     return;
   }
 
-  const vals = dates.map(date =>
-    S.portfolio.reduce((sum,h) => {
-      const e = (allHist[h.symbol]||[]).find(d=>d.date===date);
-      return sum + (e ? e.close*h.shares : 0);
-    },0)
-  );
-
-  const labels = dates.map(d =>
-    new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})
-  );
+  const vals   = dates.map(date => S.positions.reduce((sum, h) => {
+    const e = (allHist[h.symbol] || []).find(d => d.date === date);
+    return sum + (e ? e.close * h.shares : 0);
+  }, 0));
+  const labels = dates.map(d => new Date(d + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
 
   buildPortChart(labels, vals);
 }
 
-// ── STOCK MODAL ────────────────────────────────────────────────────
+// ── STOCK MODAL ─────────────────────────────────────────────────
 async function openStock(symbol) {
   $('stk-modal-title').textContent = symbol;
   $('stk-modal-body').innerHTML = '<div class="spinner-wrap"><div class="spinner"></div>Loading…</div>';
   $('ov-stock').classList.add('open');
 
-  // Use already-loaded quote data for all metrics — no additional API call needed
-  const q     = S.quotes[symbol];
-  const h     = S.portfolio.find(p=>p.symbol===symbol);
-  const px    = q?.price ?? 0;
-  const chg   = q?.changesPercentage ?? 0;
-  const val   = px * (h?.shares ?? 0);
-  const cost  = (h?.avgCost ?? 0) * (h?.shares ?? 0);
-  const color = COLORS[S.portfolio.indexOf(h) % COLORS.length];
-  const divYield = q?.dividendYield ? (q.dividendYield * 100) : 0;
+  const q    = S.quotes[symbol];
+  const h    = S.positions.find(p => p.symbol === symbol);
+  const px   = q?.price ?? 0;
+  const chg  = q?.changesPercentage ?? 0;
+  const val  = px * (h?.shares ?? 0);
+  const cost = (h?.avg_cost ?? 0) * (h?.shares ?? 0);
+  const idx  = S.positions.findIndex(p => p.symbol === symbol);
+  const color = h?.color || COLORS[idx % COLORS.length];
 
-  // Render immediately with data we already have
   $('stk-modal-body').innerHTML = `
     <div class="stk-hdr">
       <div class="stk-icon" style="background:${color}1a;border:1px solid ${color}33;color:${color}">${symbol.slice(0,4)}</div>
-      <div class="stk-name">
-        <h2>${symbol}</h2>
-        <p>${q?.name ?? ''}</p>
-      </div>
+      <div class="stk-name"><h2>${symbol}</h2><p>${q?.name ?? ''}</p></div>
       <div class="stk-price">
         <div class="price">${f.$(px)}</div>
         <span class="badge ${sign(chg)}" style="float:right;margin-top:5px">${f.pct(chg)}</span>
       </div>
     </div>
-
     <div class="metrics">
       <div class="metric"><div class="ml">Market Cap</div><div class="mv">${f.compact(q?.marketCap)}</div></div>
       <div class="metric"><div class="ml">P/E Ratio</div><div class="mv">${q?.pe ? f.num(q.pe,1) : '—'}</div></div>
       <div class="metric"><div class="ml">52W Low</div><div class="mv">${f.$(q?.yearLow)}</div></div>
       <div class="metric"><div class="ml">52W High</div><div class="mv">${f.$(q?.yearHigh)}</div></div>
     </div>
-
     ${h ? `
     <div class="position">
       <div class="pos-item"><div class="pl">Shares</div><div class="pv">${f.num(h.shares, h.shares%1===0?0:4)}</div></div>
-      <div class="pos-item"><div class="pl">Avg Cost</div><div class="pv">${f.$(h.avgCost)}</div></div>
+      <div class="pos-item"><div class="pl">Avg Cost</div><div class="pv">${f.$(h.avg_cost)}</div></div>
       <div class="pos-item"><div class="pl">Market Value</div><div class="pv">${f.$(val)}</div></div>
-      <div class="pos-item"><div class="pl">Total Return</div>
-        <div class="pv c-${sign(val-cost)}">${f.$(val-cost)} (${f.pct(cost ? ((val-cost)/cost)*100 : 0)})</div>
-      </div>
+      <div class="pos-item"><div class="pl">Total Return</div><div class="pv c-${sign(val-cost)}">${f.$(val-cost)} (${f.pct(cost ? (val-cost)/cost*100 : 0)})</div></div>
     </div>` : ''}
-
     <div class="sec-title">Price History (1Y)</div>
     <div style="position:relative;height:180px;margin-bottom:22px">
       <canvas id="stk-chart"></canvas>
-      <div id="stk-chart-loading" class="spinner-wrap" style="position:absolute;inset:0">
-        <div class="spinner"></div>
-      </div>
+      <div id="stk-loading" class="spinner-wrap" style="position:absolute;inset:0"><div class="spinner"></div></div>
     </div>
-
     <div class="sec-title">Dividend History</div>
-    <div id="stk-div-section">
-      <div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div>
-    </div>
+    <div id="stk-divs"><div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div></div>
   `;
 
-  // Load historical prices independently
+  // Historical chart
   try {
-    const from = new Date(Date.now()-365*86400000).toISOString().split('T')[0];
+    const from = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
     const hist = await API.historical(symbol, from);
-    const loading = $('stk-chart-loading');
+    const loading = $('stk-loading');
     if (loading) loading.remove();
     if (hist.length) {
-      const sliced = hist.slice(0,252).reverse();
-      const labels = sliced.map(d=>new Date(d.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-      const prices = sliced.map(d=>d.close);
+      const sliced = hist.slice(0, 252).reverse();
+      const labels = sliced.map(d => new Date(d.date + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+      const prices = sliced.map(d => d.close);
       if (S.charts.stock) S.charts.stock.destroy();
       const isGain = prices[prices.length-1] >= prices[0];
-      const col = isGain ? '#14f0a8' : '#f0486e';
       S.charts.stock = new Chart($('stk-chart'), {
         type:'line',
-        data:{ labels, datasets:[{ data:prices, borderColor:col, borderWidth:1.5, pointRadius:0, fill:true,
-          backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }]},
+        data:{ labels, datasets:[{ data:prices, borderColor:isGain?'#14f0a8':'#f0486e', borderWidth:1.5, pointRadius:0, fill:true, backgroundColor: ctx => lineGrad(ctx, isGain), tension:.35 }] },
         options:{
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false}, tooltip:{ ...tooltipBase, callbacks:{label:c=>` ${f.$(c.parsed.y)}`}}},
+          plugins:{ legend:{display:false}, tooltip:{ ...TT_BASE, callbacks:{ label: c => ` ${f.$(c.parsed.y)}` } } },
           scales:{
-            x:{ grid:{display:false}, ticks:{maxTicksLimit:5,font:{size:9}}},
-            y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{font:{size:9},callback:v=>f.$(v,0)}},
-          }
-        }
+            x:{ grid:{display:false}, ticks:{ maxTicksLimit:5, font:{size:9} } },
+            y:{ position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{ font:{size:9}, callback: v => f.$(v,0) } },
+          },
+        },
       });
     }
   } catch(e) {
-    const el = $('stk-chart-loading');
+    const el = $('stk-loading');
     if (el) el.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable: ${e.message}</span>`;
   }
 
-  // Load dividends independently — handle errors gracefully
+  // Dividends
   try {
     const divs = await API.dividends(symbol);
-    const el = $('stk-div-section');
+    const el   = $('stk-divs');
     if (!el) return;
-    if (divs.length) {
-      el.innerHTML = `<div class="div-list">
-        ${divs.slice(0,8).map(d=>`
-          <div class="div-row">
-            <span class="dr">${f.date(d.date)}</span>
-            <span>${d.label||'Cash Dividend'}</span>
-            <span class="da">${f.$(d.dividend)}/share</span>
-          </div>`).join('')}
-      </div>`;
-    } else {
-      el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No dividend history available</p>`;
-    }
+    el.innerHTML = divs.length
+      ? `<div class="div-list">${divs.slice(0,8).map(d=>`<div class="div-row"><span class="dr">${f.date(d.date)}</span><span>${d.label||'Cash Dividend'}</span><span class="da">${f.$(d.dividend)}/share</span></div>`).join('')}</div>`
+      : `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No dividend history available</p>`;
   } catch(e) {
-    const el = $('stk-div-section');
-    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">
-      ${e.message.includes('403') || e.message.includes('limit')
-        ? 'Data unavailable (API rate limit: 5 calls/minute or 25 calls/day)'
-        : `Could not load dividends: ${e.message}`}
-    </p>`;
+    const el = $('stk-divs');
+    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">${e.message.includes('limit') ? 'API rate limit reached' : `Could not load dividends: ${e.message}`}</p>`;
   }
 }
 
-// ── CALCULATOR ─────────────────────────────────────────────────────
+// ── CALCULATOR ──────────────────────────────────────────────────
 function runCalc() {
-  const start   = parseFloat($('c-start').value)  || 0;
+  const start   = parseFloat($('c-start').value)   || 0;
   const monthly = parseFloat($('c-monthly').value) || 0;
   const annRet  = parseFloat($('c-return').value)  || 0;
   const annDiv  = parseFloat($('c-div').value)     || 0;
-
   const years   = parseInt($('c-years').value)     || 20;
-  const drip    = S.drip;
-
-  const mRet = annRet / 100 / 12;
-  const mDiv = annDiv / 100 / 12;
-  const months = years * 12;
+  const mRet    = annRet / 100 / 12;
+  const mDiv    = annDiv / 100 / 12;
+  const months  = years * 12;
 
   let port = start, contrib = start, divTotal = 0;
   const labels=[], portVals=[], contribVals=[], divVals=[];
 
-  for (let m=0; m<=months; m++) {
-    if (m>0) {
-      port    += monthly;
-      contrib += monthly;
-      const d  = port * mDiv;
-      divTotal+= d;
-      if (drip) port += d;
-      port    *= (1+mRet);
+  for (let m = 0; m <= months; m++) {
+    if (m > 0) {
+      port    += monthly; contrib += monthly;
+      const d  = port * mDiv; divTotal += d;
+      if (S.drip) port += d;
+      port    *= (1 + mRet);
     }
-    if (m%12===0) {
-      const yr = m/12;
-      labels.push(yr===0?'Now':`Yr ${yr}`);
+    if (m % 12 === 0) {
+      const yr = m / 12;
+      labels.push(yr === 0 ? 'Now' : `Yr ${yr}`);
       portVals.push(Math.round(port));
       contribVals.push(Math.round(contrib));
       divVals.push(Math.round(divTotal));
     }
   }
 
-  const final   = portVals[portVals.length-1];
-  const returns = final - contrib;
-  $('r-final').textContent   = f.$(final,0);
-  $('r-contrib').textContent = f.$(contrib,0);
-  $('r-returns').textContent = f.$(returns,0);
-  $('r-divs').textContent    = f.$(divTotal,0);
+  const final = portVals[portVals.length - 1];
+  $('r-final').textContent   = f.$(final, 0);
+  $('r-contrib').textContent = f.$(contrib, 0);
+  $('r-returns').textContent = f.$(final - contrib, 0);
+  $('r-divs').textContent    = f.$(divTotal, 0);
   buildCalcChart(labels, contribVals, portVals, divVals);
 }
 
-// ── SETTINGS ───────────────────────────────────────────────────────
+// ── FOLIO MANAGEMENT ───────────────────────────────────────────
+async function openFolioModal() {
+  $('ov-folio').classList.add('open');
+  await renderFolioList();
+}
+
+async function renderFolioList() {
+  const list = $('folio-list');
+  list.innerHTML = '<div class="spinner-wrap" style="padding:16px"><div class="spinner"></div></div>';
+  try {
+    S.portfolios = await DB.listPortfolios();
+    if (!S.portfolios.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">No portfolios yet.</p>';
+      return;
+    }
+    list.innerHTML = S.portfolios.map(p => `
+      <div class="folio-item ${p.id === S.currentFolioId ? 'active' : ''}" data-id="${p.id}">
+        <div>
+          <div class="fi-name">${p.name}</div>
+          <div class="fi-meta">Created ${new Date(p.created_at).toLocaleDateString()}</div>
+        </div>
+        <div class="folio-actions" onclick="event.stopPropagation()">
+          ${p.id !== S.currentFolioId ? `<button class="btn btn-sm" onclick="selectFolio('${p.id}')">Select</button>` : '<span style="font-size:11px;color:var(--accent);font-weight:600">Active</span>'}
+          <button class="btn btn-sm btn-danger" onclick="deleteFolioPrompt('${p.id}','${p.name}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = `<p style="color:var(--loss);font-size:13px;padding:16px">Error: ${e.message}</p>`;
+  }
+}
+
+function selectFolio(id) {
+  S.currentFolioId = id;
+  localStorage.setItem(KEY_FOLIO, id);
+  closeOverlay('ov-folio');
+  updateFolioPill();
+  loadAll();
+  toast(`Switched to: ${S.portfolios.find(p => p.id === id)?.name || id}`);
+}
+
+async function deleteFolioPrompt(id, name) {
+  if (!confirm(`Delete portfolio "${name}" and all its positions? This cannot be undone.`)) return;
+  try {
+    await DB.deletePortfolio(id);
+    if (S.currentFolioId === id) {
+      S.currentFolioId = null;
+      S.positions      = [];
+      localStorage.removeItem(KEY_FOLIO);
+      updateFolioPill();
+      renderDash();
+      renderHoldings();
+    }
+    toast('Portfolio deleted');
+    await renderFolioList();
+  } catch(e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+async function createFolio() {
+  const name = prompt('Portfolio name:');
+  if (!name?.trim()) return;
+  try {
+    const folio      = await DB.createPortfolio(name.trim());
+    S.portfolios.push(folio);
+    S.currentFolioId = folio.id;
+    S.positions      = [];
+    localStorage.setItem(KEY_FOLIO, folio.id);
+    closeOverlay('ov-folio');
+    updateFolioPill();
+    renderDash();
+    renderHoldings();
+    toast(`Created: ${folio.name}`);
+  } catch(e) {
+    toast('Create failed: ' + e.message, 'error');
+  }
+}
+
+// ── SETTINGS ────────────────────────────────────────────────────
+function openSettings() {
+  $('set-avkey').value = S.avKey;
+  $('set-sbkey').value = localStorage.getItem(KEY_SB) || '';
+  const folio = S.portfolios.find(p => p.id === S.currentFolioId);
+  $('settings-folio-name').textContent = folio ? `— ${folio.name}` : '';
+  renderEditor();
+  $('ov-settings').classList.add('open');
+}
+
 function renderEditor() {
   const ed = $('h-editor');
   if (!ed) return;
-  ed.innerHTML = S.portfolio.map((h,i)=>`
+  ed.innerHTML = S.positions.map((h, i) => `
     <div class="h-row" data-i="${i}">
-      <input type="text"   class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
-      <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
-      <input type="number" class="hc" placeholder="Cost" value="${h.avgCost}" min="0" step="any">
-      <button class="rm-btn" data-i="${i}">×</button>
+      <input type="text"   class="hs" placeholder="AAPL"   value="${h.symbol}"   style="text-transform:uppercase">
+      <input type="number" class="hq" placeholder="Shares"  value="${h.shares}"  min="0" step="any">
+      <input type="number" class="hc" placeholder="Avg $"   value="${h.avg_cost}" min="0" step="any">
+      <button class="rm-btn" data-sym="${h.symbol}">×</button>
     </div>`).join('');
 
-  ed.querySelectorAll('.rm-btn').forEach(b =>
-    b.addEventListener('click', () => { S.portfolio.splice(+b.dataset.i,1); renderEditor(); })
+  ed.querySelectorAll('.rm-btn').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      const sym = btn.dataset.sym;
+      if (!sym) { btn.closest('.h-row').remove(); return; }
+      try {
+        await DB.deletePosition(S.currentFolioId, sym);
+        S.positions = S.positions.filter(p => p.symbol !== sym);
+        renderEditor();
+        loadAll();
+        toast(`Removed ${sym}`);
+      } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+    })
   );
 }
 
-function saveSettings() {
-  const key = $('set-apikey').value.trim().replace(/\s/g,'');
-  if (key) { S.apiKey = key; localStorage.setItem('folio_key', key); }
+async function saveSettings() {
+  // Save API keys
+  const avKey = $('set-avkey').value.trim().replace(/\s/g,'');
+  const sbKey = $('set-sbkey').value.trim().replace(/\s/g,'');
+  if (avKey) { S.avKey = avKey; localStorage.setItem(KEY_AV, avKey); }
+  if (sbKey && sbKey !== localStorage.getItem(KEY_SB)) {
+    localStorage.setItem(KEY_SB, sbKey);
+    initDB(sbKey);
+    toast('Supabase key updated — reloading data');
+  }
 
+  if (!S.currentFolioId) { closeOverlay('ov-settings'); return; }
+
+  // Save positions
   const rows = document.querySelectorAll('#h-editor .h-row');
-  const port = [];
-  rows.forEach(r => {
+  const saves = [];
+  rows.forEach((r, i) => {
     const sym    = r.querySelector('.hs').value.trim().toUpperCase();
     const shares = parseFloat(r.querySelector('.hq').value);
     const cost   = parseFloat(r.querySelector('.hc').value);
-    if (sym && shares>0 && cost>0) port.push({ symbol:sym, shares, avgCost:cost });
+    if (sym && shares > 0 && cost >= 0) {
+      const existing = S.positions.find(p => p.symbol === sym);
+      saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, existing?.color || COLORS[i % COLORS.length]));
+    }
   });
-  if (port.length) {
-    S.portfolio = port;
-    localStorage.setItem('folio_port', JSON.stringify(port));
-  }
 
-  closeOverlay('ov-settings');
-  loadAll();
+  try {
+    await Promise.all(saves);
+    S.positions = await DB.listPositions(S.currentFolioId);
+    closeOverlay('ov-settings');
+    toast('Positions saved');
+    loadAll();
+  } catch(e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
 }
 
-// ── OVERLAY HELPERS ────────────────────────────────────────────────
+// ── EXPORT / IMPORT ─────────────────────────────────────────────
+function exportJSON() {
+  const folio = S.portfolios.find(p => p.id === S.currentFolioId);
+  const blob  = new Blob([JSON.stringify({ folio: folio?.name || 'Unknown', positions: S.positions, exportedAt: new Date().toISOString() }, null, 2)], { type:'application/json' });
+  const a     = document.createElement('a');
+  a.href      = URL.createObjectURL(blob);
+  a.download  = `folio-${(folio?.name||'export').replace(/\s/g,'-')}-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Exported');
+}
+
+async function importJSON(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data.positions)) throw new Error('Invalid file format');
+    if (!confirm(`Import ${data.positions.length} positions into a new portfolio "${data.folio || 'Imported'}"?`)) return;
+
+    const folio = await DB.createPortfolio(data.folio || 'Imported');
+    for (const p of data.positions) {
+      await DB.upsertPosition(folio.id, p.symbol, p.shares, p.avg_cost ?? p.avgCost ?? 0, p.color);
+    }
+    S.portfolios.push(folio);
+    S.currentFolioId = folio.id;
+    localStorage.setItem(KEY_FOLIO, folio.id);
+    updateFolioPill();
+    await loadAll();
+    toast('Import complete: ' + folio.name);
+  } catch(e) {
+    toast('Import failed: ' + e.message, 'error');
+  }
+}
+
+// ── OVERLAY HELPERS ─────────────────────────────────────────────
 function closeOverlay(id) {
   const ov = $(id);
   if (!ov) return;
   ov.classList.remove('open');
-  if (id==='ov-stock' && S.charts.stock) { S.charts.stock.destroy(); S.charts.stock=null; }
+  if (id === 'ov-stock' && S.charts.stock) { S.charts.stock.destroy(); S.charts.stock = null; }
 }
 
-// ── LOAD ALL ───────────────────────────────────────────────────────
+// ── LOAD ALL ─────────────────────────────────────────────────────
 async function loadAll() {
-  const syms = S.portfolio.map(h=>h.symbol);
+  if (!S.currentFolioId) { renderDash(); renderHoldings(); return; }
+
+  // Load positions from DB
+  try {
+    S.positions = await DB.listPositions(S.currentFolioId);
+  } catch(e) {
+    console.error('Failed to load positions:', e);
+    toast('Could not load positions: ' + e.message, 'error');
+    return;
+  }
+
+  renderDash();
+  renderHoldings();
+
+  const syms = S.positions.map(h => h.symbol);
   if (!syms.length) return;
 
-  // Show loading state
+  // Show loading in holdings table
   const tbody = $('holdings-body');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading quotes…</div></td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
 
   try {
     const qs = await API.quotes(syms);
-    if (!qs.length) throw new Error('No data returned — check your API key.');
-    qs.forEach(q => { S.quotes[q.symbol]=q; });
-
-    // Render UI immediately — don't wait for charts
+    qs.forEach(q => { S.quotes[q.symbol] = q; });
     renderDash();
     renderHoldings();
 
-    // Pre-fill calculator
     const total = Port.value();
-    if (total>0) $('c-start').value = Math.round(total);
+    if (total > 0) $('c-start').value = Math.round(total);
     runCalc();
 
-    // Load portfolio chart in background — respects 5 calls/min limit
-    loadPortChart(S.period).catch(e => console.warn('Portfolio chart failed:', e));
-
+    loadPortChart(S.period).catch(e => console.warn('Port chart:', e.message));
   } catch(e) {
-    console.error('Load failed:', e);
+    console.error('Quotes failed:', e);
     if (tbody) tbody.innerHTML = `
       <tr><td colspan="8">
         <div style="text-align:center;padding:40px">
           <div style="font-size:32px;margin-bottom:12px">⚠️</div>
-          <div style="color:var(--text);font-weight:600;margin-bottom:6px">Failed to load data</div>
+          <div style="font-weight:600;margin-bottom:6px">Failed to load quotes</div>
           <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${e.message}</div>
           <button class="btn btn-primary" onclick="loadAll()">Retry</button>
-          <button class="btn" style="margin-left:8px" onclick="document.getElementById('btn-settings').click()">Check API Key</button>
         </div>
       </td></tr>`;
+    toast(e.message, 'error');
   }
 }
 
-// ── EVENTS ────────────────────────────────────────────────────────
+// ── EVENTS ──────────────────────────────────────────────────────
 function initEvents() {
-  // Tabs
+  // Tab navigation
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
-      const tab = $('tab-'+btn.dataset.tab);
-      if (tab) tab.classList.add('active');
-      if (btn.dataset.tab==='calculator') runCalc();
+      $('tab-' + btn.dataset.tab)?.classList.add('active');
+      if (btn.dataset.tab === 'calculator') runCalc();
     });
   });
 
   // Period buttons
   document.querySelectorAll('.period-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       S.period = btn.dataset.p;
       loadPortChart(S.period);
@@ -1381,77 +1578,138 @@ function initEvents() {
   // Table sort
   document.querySelectorAll('thead th[data-s]').forEach(th => {
     th.addEventListener('click', () => {
-      S.sortDir = S.sortCol===th.dataset.s ? S.sortDir*-1 : -1;
+      S.sortDir = S.sortCol === th.dataset.s ? S.sortDir * -1 : -1;
       S.sortCol = th.dataset.s;
       renderHoldings();
     });
   });
 
-  // Refresh
-  $('btn-refresh')?.addEventListener('click', () => {
-    const k = 'folio_c_q1_'+S.portfolio.map(h=>h.symbol).join(',');
-    localStorage.removeItem(k);
-    loadAll();
-  });
+  // Header buttons
+  $('folio-pill')?.addEventListener('click', openFolioModal);
+  $('btn-refresh')?.addEventListener('click', () => { Cache.clearQuotes(); loadAll(); toast('Refreshing quotes…', 'info'); });
+  $('btn-settings')?.addEventListener('click', openSettings);
+  $('btn-add-pos')?.addEventListener('click', openSettings);
+  $('dash-create-btn')?.addEventListener('click', () => { openFolioModal(); });
 
-  // Settings open
-  $('btn-settings')?.addEventListener('click', () => {
-    $('set-apikey').value = S.apiKey;
-    renderEditor();
-    $('ov-settings').classList.add('open');
-  });
-  $('btn-add-pos')?.addEventListener('click', () => {
-    $('set-apikey').value = S.apiKey;
-    renderEditor();
-    $('ov-settings').classList.add('open');
-  });
+  // Folio modal
+  $('btn-create-folio')?.addEventListener('click', createFolio);
+
+  // Settings
   $('save-settings')?.addEventListener('click', saveSettings);
   $('add-holding')?.addEventListener('click', () => {
-    S.portfolio.push({symbol:'',shares:0,avgCost:0});
+    S.positions.push({ symbol:'', shares:0, avg_cost:0, folio_id: S.currentFolioId, color: null });
     renderEditor();
   });
+  $('btn-test-api')?.addEventListener('click', async () => {
+    const el = $('api-test-result');
+    el.textContent = 'Testing…';
+    const res = await API.test();
+    el.textContent = res.ok ? '✓ OK' : '✗ ' + res.error;
+    el.style.color = res.ok ? 'var(--gain)' : 'var(--loss)';
+  });
 
-  // Close buttons
+  // Data buttons
+  $('btn-export')?.addEventListener('click', exportJSON);
+  $('btn-import')?.addEventListener('click', () => $('import-file').click());
+  $('import-file')?.addEventListener('change', e => { if (e.target.files[0]) importJSON(e.target.files[0]); });
+  $('btn-clear-cache')?.addEventListener('click', Cache.clearQuotes);
+
+  // Calculator
+  $('btn-calc')?.addEventListener('click', runCalc);
+  ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id => $(id)?.addEventListener('input', runCalc));
+  $('drip-toggle')?.addEventListener('click', e => {
+    S.drip = !S.drip;
+    e.currentTarget.classList.toggle('on', S.drip);
+    runCalc();
+  });
+
+  // Close overlays
   document.querySelectorAll('[data-close]').forEach(btn =>
     btn.addEventListener('click', () => closeOverlay(btn.dataset.close))
   );
   document.querySelectorAll('.overlay').forEach(ov =>
-    ov.addEventListener('click', e => { if(e.target===ov) closeOverlay(ov.id); })
+    ov.addEventListener('click', e => { if (e.target === ov) closeOverlay(ov.id); })
   );
 
-  // Calculator
-  $('btn-calc')?.addEventListener('click', runCalc);
-  ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id =>
-    $(id)?.addEventListener('input', runCalc)
-  );
-  $('drip-toggle')?.addEventListener('click', e => {
-    S.drip = !S.drip;
-    e.target.classList.toggle('on', S.drip);
-    runCalc();
-  });
-
-  // API prompt
-  $('prompt-submit')?.addEventListener('click', () => {
-    const k = $('prompt-key').value.trim().replace(/\s/g,'');
-    if (!k) { $('prompt-key').style.borderColor='var(--loss)'; return; }
-    S.apiKey = k;
-    localStorage.setItem('folio_key', k);
-    $('api-screen').style.display = 'none';
-    loadAll();
-  });
-  $('prompt-key')?.addEventListener('keydown', e => {
-    if (e.key==='Enter') $('prompt-submit').click();
-  });
+  // Setup screen
+  $('setup-submit')?.addEventListener('click', handleSetup);
+  $('setup-sb-key')?.addEventListener('keydown', e => { if (e.key === 'Enter') $('setup-av-key').focus(); });
+  $('setup-av-key')?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSetup(); });
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
+// ── SETUP HANDLER ───────────────────────────────────────────────
+async function handleSetup() {
+  const sbKey = $('setup-sb-key').value.trim();
+  const avKey = $('setup-av-key').value.trim();
+
+  if (!sbKey) { $('setup-sb-key').style.borderColor = 'var(--loss)'; return; }
+  if (!avKey) { $('setup-av-key').style.borderColor = 'var(--loss)'; return; }
+
+  localStorage.setItem(KEY_SB, sbKey);
+  localStorage.setItem(KEY_AV, avKey);
+  S.avKey = avKey;
+
+  initDB(sbKey);
+  $('setup-screen').style.display  = 'none';
+  $('app-shell').style.display     = 'block';
+
+  await bootstrapApp();
+}
+
+// ── BOOTSTRAP ───────────────────────────────────────────────────
+async function bootstrapApp() {
+  getBrowserId();
+
+  // Load portfolios
+  try {
+    S.portfolios = await DB.listPortfolios();
+  } catch(e) {
+    toast('Could not connect to Supabase: ' + e.message, 'error');
+    console.error(e);
+  }
+
+  updateFolioPill();
+
+  // Validate saved folio still exists
+  if (S.currentFolioId && !S.portfolios.find(p => p.id === S.currentFolioId)) {
+    S.currentFolioId = null;
+    localStorage.removeItem(KEY_FOLIO);
+    updateFolioPill();
+  }
+
+  // Pre-fill calc with portfolio total (if loaded later)
+  runCalc();
+
+  // Load data
+  await loadAll();
+
+  // If no portfolios, prompt to create one
+  if (!S.portfolios.length) {
+    toast('No portfolios found. Create one to get started.', 'info');
+  }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
 function init() {
   initEvents();
-  if (!S.apiKey) {
-    $('api-screen').style.display = 'flex';
+
+  const sbKey = localStorage.getItem(KEY_SB);
+  const avKey = localStorage.getItem(KEY_AV);
+
+  if (!sbKey || !avKey) {
+    $('setup-screen').style.display = 'flex';
+    if (sbKey) $('setup-sb-key').value = sbKey;
+    if (avKey) $('setup-av-key').value = avKey;
     return;
   }
-  loadAll();
+
+  S.avKey = avKey;
+  initDB(sbKey);
+
+  $('setup-screen').style.display = 'none';
+  $('app-shell').style.display    = 'block';
+
+  bootstrapApp();
 }
 
 init();
