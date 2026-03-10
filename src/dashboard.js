@@ -10,7 +10,7 @@ Chart.register(...registerables);
 // ═══════════════════════════════════════════════════════════════
 
 // ── CONFIG ─────────────────────────────────────────────────────
-const SUPABASE_URL = 'https://qpkvbgeqmrnvhpgqqbmg.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const AV_BASE      = 'https://www.alphavantage.co/query';
 
 const sbKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
