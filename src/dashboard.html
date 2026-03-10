@@ -3,611 +3,611 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FOLIO — Portfolio Tracker</title>
+<title>FOLIO — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script type="module" src="/dashboard.js"></script>
 <style>
 /* ── RESET & BASE ─────────────────────────────────────────────── */
 :root {
   --bg:      #060a14;
   --surface: #0c1120;
   --card:    rgba(255,255,255,0.04);
-  --card-h:  rgba(255,255,255,0.06);
   --border:  rgba(255,255,255,0.07);
   --ba:      rgba(20,240,168,0.22);
   --accent:  #14f0a8;
   --adim:    rgba(20,240,168,0.1);
   --gain:    #14f0a8;
-  --gain-dim:rgba(20,240,168,0.12);
   --loss:    #f0486e;
-  --loss-dim:rgba(240,72,110,0.12);
   --text:    #e8edf8;
   --muted:   #5a6680;
   --mono:    'JetBrains Mono', monospace;
   --sans:    'Space Grotesk', sans-serif;
-  --r:       14px;
-  --r-sm:    8px;
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
 html { scroll-behavior:smooth; }
 body {
-  background:var(--bg);
-  color:var(--text);
-  font-family:var(--sans);
-  min-height:100vh;
+  background:var(--bg); color:var(--text);
+  font-family:var(--sans); min-height:100vh;
   -webkit-font-smoothing:antialiased;
 }
 a { color:var(--accent); text-decoration:none; }
-input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
-::-webkit-scrollbar { width:5px; height:5px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+input, select, button { font-family:var(--sans); }
 
-/* ──── LAYOUT ─────────────────────────────────────────────────── */
-.app { max-width:1440px; margin:0 auto; padding:0 32px 80px; }
+/* ── LAYOUT ── */
+.wrap { max-width:1200px; margin:0 auto; padding:0 28px; }
 
-/* ──── HEADER ─────────────────────────────────────────────────── */
-header {
-  display:flex; align-items:center; gap:14px; padding:22px 0 28px;
-}
-.logo { font-size:18px; font-weight:700; letter-spacing:-0.04em; flex-shrink:0; }
-.logo em { color:var(--accent); font-style:normal; }
-.folio-pill {
-  display:flex; align-items:center; gap:8px; background:var(--card);
-  border:1px solid var(--border); border-radius:10px; padding:7px 14px;
-  cursor:pointer; transition:all .18s; flex-shrink:0;
-}
-.folio-pill:hover { border-color:var(--accent); }
-.folio-pill .fp-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-.folio-pill .fp-name  { font-size:13px; font-weight:600; max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.folio-pill .fp-caret { font-size:10px; color:var(--muted); margin-left:2px; }
+/* ── NAV ─────────────────────────────────────────────────────── */
 .nav {
-  display:flex; background:var(--card); border:1px solid var(--border);
-  border-radius:12px; padding:4px; gap:2px; margin-left:auto;
+  position:sticky; top:0; z-index:90;
+  background:rgba(6,10,20,.92); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border); padding:12px 0;
 }
+.nav-inner {
+  display:flex; align-items:center; gap:10px; flex-wrap:nowrap;
+}
+.logo { font-size:20px; font-weight:700; letter-spacing:-.04em; color:var(--accent); flex-shrink:0; }
+
+.folio-pill {
+  display:flex; align-items:center; gap:8px;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:9px; padding:9px 14px; cursor:pointer;
+  font-size:13px; font-weight:600; color:var(--text);
+  transition:all .15s; white-space:nowrap; max-width:220px;
+}
+.folio-pill:hover { border-color:var(--accent); color:var(--accent); }
+.folio-pill-icon { font-size:14px; }
+
+.nav-tabs { display:flex; gap:4px; margin-left:4px; }
 .nav-btn {
-  padding:8px 22px; border:none; background:transparent; color:var(--muted);
-  font-family:var(--sans); font-size:14px; font-weight:500;
-  border-radius:8px; cursor:pointer; transition:all .18s;
+  padding:8px 16px; background:transparent; border:none;
+  color:var(--muted); font-size:13px; font-weight:500;
+  border-radius:8px; cursor:pointer; transition:all .15s;
 }
-.nav-btn:hover { color:var(--text); }
-.nav-btn.active { background:var(--accent); color:#060a14; }
-.hdr-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-.upd { font-size:11px; color:var(--muted); font-family:var(--mono); }
+.nav-btn:hover { color:var(--text); background:var(--card); }
+.nav-btn.active { color:var(--accent); background:var(--adim); }
 
-/* ──── BUTTONS ─────────────────────────────────────────────────── */
+.nav-actions { display:flex; gap:6px; margin-left:auto; align-items:center; }
+
 .btn {
-  padding:9px 16px; border-radius:var(--r-sm); font-family:var(--sans);
-  font-size:13px; font-weight:500; cursor:pointer; transition:all .18s;
-  border:1px solid var(--border); background:var(--card); color:var(--muted);
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 16px; border-radius:9px; font-family:var(--sans);
+  font-size:13px; font-weight:600; cursor:pointer; transition:all .18s;
+  border:none; text-decoration:none; white-space:nowrap;
 }
-.btn:hover { border-color:var(--accent); color:var(--accent); }
-.btn-primary { background:var(--accent); border-color:var(--accent); color:#060a14; }
-.btn-primary:hover { background:#0fd899; }
-.btn-danger  { background:var(--loss-dim); border-color:rgba(240,72,110,.35); color:var(--loss); }
-.btn-danger:hover  { background:var(--loss); color:#fff; }
-.btn-sm { padding:6px 12px; font-size:12px; }
-.btn-logout {
-  background:rgba(240,72,110,.08); border-color:rgba(240,72,110,.2); color:var(--loss);
+.btn-ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+.btn-accent { background:var(--accent); color:#060a14; }
+.btn-accent:hover { background:#0fd899; transform:translateY(-1px); }
+.btn-danger { background:transparent; border:1px solid rgba(240,72,110,.3); color:var(--loss); }
+.btn-danger:hover { background:rgba(240,72,110,.1); }
+.btn-icon {
+  width:36px; height:36px; padding:0; border-radius:9px;
+  background:transparent; border:1px solid var(--border); color:var(--muted);
+  font-size:16px; flex-shrink:0;
 }
-.btn-logout:hover {
-  background:var(--loss); color:#fff; border-color:var(--loss);
-}
+.btn-icon:hover { border-color:var(--accent); color:var(--accent); }
+.btn-sm { padding:6px 12px; font-size:12px; border-radius:7px; border:1px solid var(--border); background:transparent; color:var(--text); }
+.btn-sm:hover { border-color:var(--accent); color:var(--accent); }
 
-/* ──── TABS ───────────────────────────────────────────────────── */
+.upd-time { font-size:11px; color:var(--muted); flex-shrink:0; }
+
+/* ── TABS ── */
 .tab { display:none; }
 .tab.active { display:block; }
 
-/* ──── CARDS ─────────────────────────────────────────────────── */
-.card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:24px; }
+/* ── EMPTY STATE ── */
+.dash-empty {
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  min-height:60vh; gap:20px; text-align:center;
+}
+.dash-empty-icon { font-size:52px; margin-bottom:8px; }
+.dash-empty h2 { font-size:22px; font-weight:700; letter-spacing:-.02em; }
+.dash-empty p { color:var(--muted); font-size:14px; max-width:360px; line-height:1.65; }
 
-/* ──── STATS ROW ─────────────────────────────────────────────── */
-.stats-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:14px; margin-bottom:16px; }
-.stat-card  { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:22px 24px; }
-.stat-card.main {
-  border-color:var(--ba); background:linear-gradient(135deg, rgba(20,240,168,0.05) 0%, transparent 50%);
+/* ── STAT CARDS ── */
+.stats-row { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; padding:24px 0 0; }
+.sc {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:18px;
 }
-.stat-lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; font-weight:500; margin-bottom:8px; }
-.stat-val  { font-family:var(--mono); font-size:26px; font-weight:600; letter-spacing:-.02em; line-height:1; margin-bottom:5px; }
-.stat-card:not(.main) .stat-val { font-size:20px; }
-.stat-sub  { font-family:var(--mono); font-size:12px; }
-
-/* ──── CHARTS ROW ─────────────────────────────────────────────── */
-.charts-row { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:16px; }
-.chart-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
-.chart-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
-.period-btns { display:flex; gap:2px; }
-.period-btn {
-  padding:5px 11px; border:1px solid var(--border); background:transparent;
-  color:var(--muted); font-family:var(--mono); font-size:11px;
-  border-radius:6px; cursor:pointer; transition:all .15s;
-}
-.period-btn.active,.period-btn:hover { border-color:var(--accent); color:var(--accent); }
-.chart-wrap  { position:relative; height:240px; }
-.alloc-wrap  { position:relative; height:210px; margin-top:10px; }
-
-/* ──── HOLDINGS TABLE ─────────────────────────────────────────── */
-.tbl-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
-.tbl-hdr h3 { font-size:14px; font-weight:600; letter-spacing:-.02em; }
-table { width:100%; border-collapse:collapse; }
-thead th {
-  text-align:left; font-size:11px; font-weight:600; text-transform:uppercase;
-  letter-spacing:.07em; color:var(--muted); padding:0 14px 13px;
-  border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;
-}
-thead th:hover { color:var(--text); }
-thead th:first-child { padding-left:0; }
-thead th:last-child  { padding-right:0; }
-tbody td {
-  padding:13px 14px; border-bottom:1px solid rgba(255,255,255,0.04);
-  font-size:13px; vertical-align:middle;
-}
-tbody td:first-child { padding-left:0; }
-tbody td:last-child  { padding-right:0; }
-tbody tr { cursor:pointer; transition:background .15s; }
-tbody tr:hover { background:var(--card-h); }
-tbody tr:last-child td { border-bottom:none; }
-.sym-cell  { display:flex; align-items:center; gap:11px; }
-.sym-badge {
-  width:34px; height:34px; border-radius:8px; display:flex;
-  align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;
-}
-.sym-info .sym  { font-weight:600; font-size:13px; }
-.sym-info .name { font-size:11px; color:var(--muted); max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mono { font-family:var(--mono); }
-.badge { display:inline-flex; align-items:center; padding:3px 7px; border-radius:5px; font-family:var(--mono); font-size:11px; font-weight:500; }
-.badge.gain { background:var(--gain-dim); color:var(--gain); }
-.badge.loss { background:var(--loss-dim); color:var(--loss); }
-.badge.neu  { background:rgba(90,102,128,.2); color:var(--muted); }
+.sc:first-child { border-color:var(--ba); background:rgba(20,240,168,.03); }
+.sc-lbl { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:8px; }
+.sc-val { font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:-.03em; margin-bottom:3px; }
+.sc-sub { font-family:var(--mono); font-size:11px; color:var(--muted); }
 .c-gain { color:var(--gain); }
 .c-loss { color:var(--loss); }
-.c-muted{ color:var(--muted); }
+.c-muted { color:var(--muted); }
 
-/* ──── EMPTY STATE ─────────────────────────────────────────────── */
-.empty-state {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:80px 40px; gap:16px; text-align:center;
+/* ── CHART ROW ── */
+.chart-row { display:grid; grid-template-columns:1fr 300px; gap:16px; padding:16px 0; }
+.chart-card, .alloc-card {
+  background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px;
 }
-.empty-state .icon  { font-size:48px; }
-.empty-state h3     { font-size:18px; font-weight:600; letter-spacing:-.02em; }
-.empty-state p      { font-size:13px; color:var(--muted); line-height:1.7; max-width:360px; }
+.chart-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.chart-title { font-size:13px; font-weight:600; }
+.period-btns { display:flex; gap:4px; }
+.period-btn {
+  padding:5px 12px; background:transparent; border:1px solid var(--border);
+  border-radius:7px; color:var(--muted); font-size:11px; font-weight:600;
+  cursor:pointer; transition:all .15s;
+}
+.period-btn:hover { color:var(--accent); border-color:var(--ba); }
+.period-btn.active { color:var(--accent); border-color:var(--ba); background:var(--adim); }
+.port-chart-wrap { position:relative; height:240px; }
+.alloc-chart-wrap { position:relative; height:200px; margin-bottom:12px; }
 
-/* ──── CALCULATOR ─────────────────────────────────────────────── */
-.calc-layout { display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; }
-.calc-inputs { display:flex; flex-direction:column; gap:14px; }
-.inp-grp { display:flex; flex-direction:column; gap:5px; }
-.inp-grp label { font-size:11px; font-weight:500; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
-.inp-wrap { position:relative; }
-.inp-prefix { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted); font-family:var(--mono); font-size:13px; }
-.inp-wrap input {
-  width:100%; padding:10px 13px 10px 27px; background:var(--card);
-  border:1px solid var(--border); border-radius:var(--r-sm); color:var(--text);
-  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
-}
-.inp-wrap.no-pfx input { padding-left:13px; }
-.inp-wrap input:focus { border-color:var(--accent); }
-.toggle-row {
+/* ── HOLDINGS TABLE ── */
+.holdings-section { padding:0 0 48px; }
+.holdings-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:10px 13px; background:var(--card); border:1px solid var(--border); border-radius:var(--r-sm);
+  padding:16px 0; gap:12px;
 }
-.toggle-row span { font-size:13px; }
-.toggle {
-  width:38px; height:21px; background:var(--border); border-radius:11px;
-  cursor:pointer; transition:background .2s; border:none; position:relative; flex-shrink:0;
+.holdings-title { font-size:15px; font-weight:600; }
+.tbl-wrap { overflow-x:auto; }
+.tbl {
+  width:100%; border-collapse:collapse; font-size:13px;
 }
-.toggle.on { background:var(--accent); }
-.toggle::after {
-  content:''; position:absolute; width:15px; height:15px; background:#fff;
-  border-radius:50%; top:3px; left:3px; transition:transform .2s;
+.tbl thead th {
+  text-align:left; padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--muted); cursor:pointer; white-space:nowrap;
 }
-.toggle.on::after { transform:translateX(17px); }
-.calc-results { background:var(--card); border:1px solid var(--ba); border-radius:var(--r); padding:22px 24px; }
-.result-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
-.result-item .rl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
-.result-item .rv { font-family:var(--mono); font-size:17px; font-weight:600; }
-.calc-chart-wrap { position:relative; height:260px; }
+.tbl thead th:hover { color:var(--accent); }
+.tbl thead th[data-s] { user-select:none; }
+.tbl tbody tr {
+  border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s;
+}
+.tbl tbody tr:last-child { border-bottom:none; }
+.tbl tbody tr:hover { background:rgba(255,255,255,.025); }
+.tbl td { padding:14px; vertical-align:middle; }
+.mono { font-family:var(--mono); }
+.sym-cell { display:flex; align-items:center; gap:10px; }
+.sym-badge {
+  width:38px; height:38px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:9px; font-weight:700; font-family:var(--mono); flex-shrink:0;
+}
+.sym-info .sym { font-weight:600; font-size:14px; }
+.sym-info .name { font-size:11px; color:var(--muted); margin-top:2px; }
+.badge {
+  display:inline-block; padding:3px 8px; border-radius:6px;
+  font-size:11px; font-weight:600; font-family:var(--mono);
+}
+.badge.gain { background:rgba(20,240,168,.12); color:var(--gain); }
+.badge.loss { background:rgba(240,72,110,.12); color:var(--loss); }
+.badge.neu  { color:var(--muted); }
+.col-shares, .col-avgcost, .col-divyield { color:var(--muted); }
 
-/* ──── MODALS ─────────────────────────────────────────────────── */
+/* ── CALCULATOR ── */
+.calc-tab { padding:28px 0 48px; }
+.calc-grid { display:grid; grid-template-columns:340px 1fr; gap:24px; align-items:start; }
+.calc-card {
+  background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px;
+}
+.calc-card h3 { font-size:16px; font-weight:600; margin-bottom:20px; }
+.fg { margin-bottom:16px; }
+.fg label { display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:6px; }
+.fg input {
+  width:100%; padding:11px 14px; background:rgba(255,255,255,.05);
+  border:1px solid var(--border); border-radius:9px; color:var(--text);
+  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .15s;
+}
+.fg input:focus { border-color:var(--accent); }
+.drip-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.drip-lbl { font-size:13px; color:var(--muted); }
+.drip-toggle {
+  width:42px; height:22px; background:var(--border); border:none; border-radius:100px;
+  cursor:pointer; position:relative; transition:background .2s; padding:0;
+}
+.drip-toggle::after {
+  content:''; position:absolute; left:3px; top:3px;
+  width:16px; height:16px; border-radius:50%; background:#fff; transition:left .2s;
+}
+.drip-toggle.on { background:var(--accent); }
+.drip-toggle.on::after { left:23px; }
+.results-card {
+  background:var(--adim); border:1px solid var(--ba);
+  border-radius:12px; padding:20px; margin-top:16px;
+  display:grid; grid-template-columns:1fr 1fr; gap:12px;
+}
+.res-item .rl { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:4px; }
+.res-item .rv { font-family:var(--mono); font-size:18px; font-weight:600; color:var(--accent); }
+.calc-chart-card {
+  background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px;
+}
+.calc-chart-wrap { position:relative; height:320px; }
+
+/* ── OVERLAYS ── */
 .overlay {
-  position:fixed; inset:0; background:rgba(6,10,20,.88); backdrop-filter:blur(8px);
-  z-index:100; display:flex; align-items:center; justify-content:center;
-  padding:24px; opacity:0; pointer-events:none; transition:opacity .2s;
+  display:none; position:fixed; inset:0; z-index:100;
+  background:rgba(4,8,18,.8); backdrop-filter:blur(8px);
+  align-items:center; justify-content:center;
+  padding:20px;
 }
-.overlay.open { opacity:1; pointer-events:all; }
+.overlay.open { display:flex; }
 .modal {
-  background:#0c1120; border:1px solid var(--border); border-radius:20px;
-  width:100%; max-width:620px; max-height:90vh; overflow-y:auto;
-  transform:translateY(10px); transition:transform .2s;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:16px; width:100%; box-shadow:0 40px 100px rgba(0,0,0,.7);
+  position:relative; overflow:hidden;
 }
-.overlay.open .modal { transform:translateY(0); }
-.modal.wide { max-width:780px; }
-.modal-hdr {
+.modal::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--ba),transparent);
+}
+.modal-md { max-width:520px; }
+.modal-lg { max-width:760px; }
+.modal-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:22px 26px; border-bottom:1px solid var(--border);
+  padding:20px 24px; border-bottom:1px solid var(--border);
 }
-.modal-hdr h2 { font-size:17px; font-weight:600; letter-spacing:-.02em; }
-.modal-close {
-  width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
-  background:transparent; color:var(--muted); font-size:17px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; transition:all .15s;
+.modal-header h2 { font-size:16px; font-weight:600; letter-spacing:-.02em; }
+.modal-body { padding:24px; max-height:80vh; overflow-y:auto; }
+.modal-footer {
+  display:flex; gap:10px; justify-content:flex-end;
+  padding:16px 24px; border-top:1px solid var(--border);
 }
-.modal-close:hover { border-color:var(--loss); color:var(--loss); }
-.modal-body { padding:26px; }
 
-/* ──── STOCK DETAIL ───────────────────────────────────────────── */
-.stk-hdr  { display:flex; align-items:flex-start; gap:16px; margin-bottom:22px; }
-.stk-icon { width:48px; height:48px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
-.stk-name h2 { font-size:22px; font-weight:700; letter-spacing:-.03em; }
-.stk-name p  { font-size:13px; color:var(--muted); margin-top:2px; }
-.stk-price   { margin-left:auto; text-align:right; }
-.stk-price .price { font-family:var(--mono); font-size:28px; font-weight:600; }
-.metrics  { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
-.metric   { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px; }
-.metric .ml { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:3px; }
-.metric .mv { font-family:var(--mono); font-size:14px; font-weight:500; }
-.position {
-  background:var(--adim); border:1px solid rgba(20,240,168,0.2);
-  border-radius:11px; padding:16px 18px; display:grid;
-  grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;
-}
-.pos-item .pl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--accent); opacity:.7; margin-bottom:3px; }
-.pos-item .pv { font-family:var(--mono); font-size:14px; font-weight:500; }
-.div-list { display:flex; flex-direction:column; gap:6px; }
-.div-row  { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; background:rgba(255,255,255,0.02); border-radius:7px; font-size:12px; }
-.div-row .dr { color:var(--muted); font-family:var(--mono); }
-.div-row .da { font-family:var(--mono); color:var(--gain); }
-
-/* ──── SETTINGS ─────────────────────────────────────────────────── */
-.set-section { margin-bottom:28px; }
-.set-section h3 { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
-.set-input {
-  width:100%; padding:10px 13px; background:rgba(255,255,255,0.04);
-  border:1px solid var(--border); border-radius:var(--r-sm); color:var(--text);
-  font-family:var(--mono); font-size:13px; outline:none; transition:border-color .18s;
-}
-.set-input:focus { border-color:var(--accent); }
-.h-editor { display:flex; flex-direction:column; gap:7px; margin-bottom:10px; max-height:280px; overflow-y:auto; }
-.h-row { display:grid; grid-template-columns:90px 1fr 1fr 32px; gap:7px; align-items:center; }
+/* ── SETTINGS EDITOR ── */
+.h-row { display:grid; grid-template-columns:100px 1fr 1fr 36px; gap:8px; align-items:center; margin-bottom:8px; }
 .h-row input {
-  width:100%; padding:8px 10px; background:rgba(255,255,255,0.04);
-  border:1px solid var(--border); border-radius:6px; color:var(--text);
-  font-family:var(--mono); font-size:12px; outline:none;
+  padding:9px 12px; background:var(--card); border:1px solid var(--border);
+  border-radius:8px; color:var(--text); font-family:var(--mono);
+  font-size:12px; outline:none; width:100%;
 }
 .h-row input:focus { border-color:var(--accent); }
-.h-row input::placeholder { color:var(--muted); }
 .rm-btn {
-  width:30px; height:30px; border-radius:6px; border:1px solid var(--border);
-  background:transparent; color:var(--muted); cursor:pointer; font-size:15px;
+  width:36px; height:36px; background:transparent; border:1px solid rgba(240,72,110,.3);
+  border-radius:8px; color:var(--loss); cursor:pointer; font-size:18px;
   display:flex; align-items:center; justify-content:center; transition:all .15s;
 }
-.rm-btn:hover { border-color:var(--loss); color:var(--loss); }
-.add-btn {
-  width:100%; padding:9px; border:1px dashed var(--border); background:transparent;
-  color:var(--muted); border-radius:var(--r-sm); cursor:pointer; font-family:var(--sans);
-  font-size:12px; transition:all .15s;
+.rm-btn:hover { background:rgba(240,72,110,.1); }
+.set-section { margin-bottom:20px; }
+.set-section h3 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
+.set-row { display:flex; gap:8px; margin-top:10px; align-items:flex-start; }
+.h-editor-header {
+  display:grid; grid-template-columns:100px 1fr 1fr 36px; gap:8px;
+  margin-bottom:6px; font-size:10px; font-weight:600; text-transform:uppercase;
+  letter-spacing:.07em; color:var(--muted); padding:0 2px;
 }
-.add-btn:hover { border-color:var(--accent); color:var(--accent); }
 
-/* ──── FOLIO LIST ITEMS ───────────────────────────────────────── */
+/* ── FOLIO LIST ── */
 .folio-item {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:10px; padding:14px 16px; margin-bottom:8px;
   display:flex; align-items:center; justify-content:space-between;
-  padding:14px 16px; background:var(--card); border:1px solid var(--border);
-  border-radius:10px; cursor:pointer; transition:all .15s;
+  cursor:pointer; transition:all .15s;
 }
-.folio-item:hover { border-color:var(--accent); background:var(--card-h); }
 .folio-item.active { border-color:var(--ba); background:var(--adim); }
-.folio-item .fi-name { font-weight:600; font-size:14px; }
-.folio-item .fi-meta { font-size:11px; color:var(--muted); margin-top:3px; font-family:var(--mono); }
-.folio-actions { display:flex; gap:6px; flex-shrink:0; }
+.folio-item:hover { border-color:var(--border); background:rgba(255,255,255,.03); }
+.fi-name { font-size:14px; font-weight:600; }
+.fi-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+.folio-actions { display:flex; gap:6px; align-items:center; }
 
-/* ──── SPINNER ─────────────────────────────────────────────────── */
-.spinner-wrap { display:flex; align-items:center; justify-content:center; padding:50px; gap:10px; color:var(--muted); font-size:13px; }
-.spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+/* ── STOCK MODAL ── */
+.stk-hdr { display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
+.stk-icon {
+  width:48px; height:48px; border-radius:12px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; font-family:var(--mono);
+}
+.stk-name h2 { font-size:20px; font-weight:700; letter-spacing:-.03em; }
+.stk-name p { color:var(--muted); font-size:12px; margin-top:2px; }
+.stk-price { margin-left:auto; text-align:right; }
+.stk-price .price { font-family:var(--mono); font-size:24px; font-weight:600; }
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px; }
+.metric {
+  background:var(--card); border:1px solid var(--border); border-radius:9px; padding:12px;
+}
+.metric .ml { font-size:10px; color:var(--muted); margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+.metric .mv { font-family:var(--mono); font-size:14px; font-weight:600; }
+.position {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;
+  background:var(--adim); border:1px solid var(--ba); border-radius:10px; padding:14px;
+}
+.pos-item .pl { font-size:10px; color:var(--muted); margin-bottom:4px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+.pos-item .pv { font-family:var(--mono); font-size:14px; font-weight:600; }
+.sec-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
+.div-list { display:flex; flex-direction:column; gap:6px; }
+.div-row { display:flex; align-items:center; gap:12px; padding:9px 12px; background:var(--card); border-radius:8px; font-size:12px; }
+.div-row .dr { color:var(--muted); width:90px; flex-shrink:0; }
+.div-row .da { margin-left:auto; font-family:var(--mono); font-weight:600; color:var(--gain); }
+.spinner-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:40px 0; color:var(--muted); font-size:13px; }
+.spinner { width:32px; height:32px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 
-/* ──── TOAST ───────────────────────────────────────────────────── */
-#toast-container { position:fixed; top:20px; right:20px; z-index:300; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+/* ── TOAST ── */
+.toast-container { position:fixed; bottom:24px; right:24px; z-index:999; display:flex; flex-direction:column; gap:8px; }
 .toast {
-  padding:12px 18px; border-radius:10px; font-size:13px; font-weight:500;
-  box-shadow:0 4px 16px rgba(0,0,0,0.4); pointer-events:all; max-width:320px;
-  animation:toastIn .25s ease-out;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:12px 18px; font-size:13px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4); max-width:320px;
 }
-.toast.success { background:var(--accent); color:#060a14; }
-.toast.error   { background:var(--loss); color:#fff; }
-.toast.info    { background:var(--surface); border:1px solid var(--border); color:var(--text); }
-@keyframes toastIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+.toast.success { border-color:var(--ba); color:var(--gain); }
+.toast.error   { border-color:rgba(240,72,110,.3); color:var(--loss); }
+.toast.info    { color:var(--text); }
 
-/* ──── UTILS ───────────────────────────────────────────────────── */
-.sep     { border:none; border-top:1px solid var(--border); margin:18px 0; }
-.row-end { display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
-.mt-12   { margin-top:12px; }
-.mt-18   { margin-top:18px; }
-.sec-title { font-size:13px; font-weight:600; letter-spacing:-.01em; margin-bottom:12px; }
-
-/* ──── TABLE SCROLL ─────────────────────────────────────────────── */
-.tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-
-/* ──── RESPONSIVE ─────────────────────────────────────────────── */
-@media (max-width:1024px) {
-  .charts-row { grid-template-columns:1fr; }
-  .alloc-wrap { height:180px; }
-  .calc-layout { grid-template-columns:1fr; }
-  .calc-inputs { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  .calc-inputs > .inp-grp:last-of-type { grid-column:1/-1; }
+/* ── RESPONSIVE ── */
+@media (max-width:960px) {
+  .stats-row { grid-template-columns:repeat(3,1fr); }
+  .chart-row { grid-template-columns:1fr; }
+  .calc-grid { grid-template-columns:1fr; }
+  .metrics { grid-template-columns:repeat(2,1fr); }
+  .position { grid-template-columns:repeat(2,1fr); }
 }
-@media (max-width:768px) {
-  .app { padding:0 16px 60px; }
-  header { flex-wrap:wrap; padding:14px 0 18px; gap:8px; }
-  .nav { order:10; width:100%; overflow-x:auto; }
-  .nav-btn { padding:7px 16px; font-size:13px; white-space:nowrap; }
-  .upd { display:none; }
-  .stats-row { grid-template-columns:1fr 1fr; gap:10px; }
-  .stat-card.main { grid-column:1/-1; }
-  .stat-val { font-size:22px !important; }
-  .charts-row { grid-template-columns:1fr; gap:12px; }
-  .chart-wrap { height:200px; }
-  .alloc-wrap { height:200px; }
-  .tbl-hdr { flex-direction:column; align-items:flex-start; gap:10px; }
-  .col-avgcost,.col-divyield { display:none; }
-  .calc-layout { grid-template-columns:1fr; gap:14px; }
-  .calc-inputs { display:flex; flex-direction:column; }
-  .result-row  { grid-template-columns:1fr 1fr; gap:10px; }
-  .calc-chart-wrap { height:200px; }
-  .overlay { align-items:flex-end; padding:0; }
-  .modal { max-width:100%; border-radius:20px 20px 0 0; max-height:92vh; }
-  .modal-hdr { padding:18px 20px; }
-  .modal-body { padding:20px; }
-  .stk-hdr { flex-wrap:wrap; }
-  .stk-price { width:100%; margin-left:0; margin-top:10px; text-align:left; }
-  .stk-price .price { font-size:22px; }
-  .metrics  { grid-template-columns:1fr 1fr; gap:8px; }
-  .position { grid-template-columns:1fr 1fr; gap:8px; }
-}
-@media (max-width:480px) {
-  .stats-row { grid-template-columns:1fr; }
-  .stat-card.main { grid-column:unset; }
-  .result-row { grid-template-columns:1fr 1fr; }
-  .metrics  { grid-template-columns:1fr 1fr; }
-  .position { grid-template-columns:1fr 1fr; }
-  .col-shares { display:none; }
-  thead th:nth-child(6),tbody td:nth-child(6) { display:none; }
-  .stat-val { font-size:20px !important; }
+@media (max-width:640px) {
+  .wrap { padding:0 16px; }
+  .stats-row { grid-template-columns:repeat(2,1fr); }
+  .nav-tabs { display:none; }
+  .folio-pill { max-width:150px; }
 }
 </style>
 </head>
 <body>
 
-<!-- ──── APP SHELL (auth check handled by dashboard.js init) ────── -->
-<div class="app" id="app-shell" style="display:none">
-  <header>
-    <div class="logo">FOLIO<em>.</em></div>
+<!-- ── NAVBAR ── -->
+<nav class="nav">
+  <div class="wrap">
+    <div class="nav-inner">
+      <div class="logo">FOLIO.</div>
 
-    <!-- Current portfolio pill -->
-    <div class="folio-pill" id="folio-pill" title="Switch or create portfolios">
-      <div>
-        <div class="fp-label">Portfolio</div>
-        <div class="fp-name" id="fp-name">No portfolio</div>
-      </div>
-      <div class="fp-caret">▾</div>
-    </div>
-
-    <nav class="nav">
-      <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="nav-btn" data-tab="holdings">Holdings</button>
-      <button class="nav-btn" data-tab="calculator">Calculator</button>
-    </nav>
-
-    <div class="hdr-right">
-      <span class="upd" id="upd-time"></span>
-      <button class="btn" id="btn-refresh">↻ Refresh</button>
-      <button class="btn" id="btn-settings">⚙ Settings</button>
-      <button class="btn btn-logout" id="btn-logout">🚪 Sign Out</button>
-    </div>
-  </header>
-
-  <!-- DASHBOARD ──────────────────────────────────────────────────── -->
-  <div id="tab-dashboard" class="tab active">
-    <div id="dash-empty" class="empty-state" style="display:none">
-      <div class="icon">📂</div>
-      <h3>No portfolio selected</h3>
-      <p>Create a portfolio and add positions to start tracking your investments.</p>
-      <button class="btn btn-primary" id="dash-create-btn">Create Portfolio</button>
-    </div>
-
-    <div id="dash-content">
-      <div class="stats-row">
-        <div class="stat-card main">
-          <div class="stat-lbl">Portfolio Value</div>
-          <div class="stat-val" id="s-total">—</div>
-          <div class="stat-sub" id="s-allgain">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Today's Gain</div>
-          <div class="stat-val" id="s-daygain">—</div>
-          <div class="stat-sub" id="s-daypct">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">All-Time Return</div>
-          <div class="stat-val" id="s-allpct">—</div>
-          <div class="stat-sub c-muted">since purchase</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Cost Basis</div>
-          <div class="stat-val" id="s-cost">—</div>
-          <div class="stat-sub c-muted" id="s-count">— positions</div>
-        </div>
+      <div class="folio-pill" id="folio-pill">
+        <span class="folio-pill-icon">📂</span>
+        <span id="fp-name">Loading…</span>
+        <span style="margin-left:2px;color:var(--muted);font-size:11px">▼</span>
       </div>
 
-      <div class="charts-row">
-        <div class="card">
-          <div class="chart-hdr">
-            <h3>Portfolio Value</h3>
-            <div class="period-btns">
-              <button class="period-btn active" data-p="1M">1M</button>
-              <button class="period-btn" data-p="3M">3M</button>
-              <button class="period-btn" data-p="6M">6M</button>
-              <button class="period-btn" data-p="1Y">1Y</button>
+      <div class="nav-tabs">
+        <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-btn" data-tab="calculator">Calculator</button>
+      </div>
+
+      <div class="nav-actions">
+        <span class="upd-time" id="upd-time"></span>
+        <button class="btn-icon btn" id="btn-refresh" title="Refresh quotes">↺</button>
+        <button class="btn-icon btn" id="btn-settings" title="Positions &amp; Settings">⚙</button>
+        <button class="btn btn-ghost" id="btn-logout" style="padding:8px 14px">Sign Out</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── APP SHELL ── -->
+<div id="app-shell" style="display:none">
+
+  <!-- DASHBOARD TAB -->
+  <div class="tab active" id="tab-dashboard">
+    <div class="wrap">
+
+      <!-- Empty state -->
+      <div class="dash-empty" id="dash-empty">
+        <div class="dash-empty-icon">📂</div>
+        <h2>No portfolio selected</h2>
+        <p>Create your first portfolio to start tracking positions and market value in real time.</p>
+        <button class="btn btn-accent" id="dash-create-btn">Create Portfolio</button>
+      </div>
+
+      <!-- Dashboard content -->
+      <div id="dash-content" style="display:none">
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="sc">
+            <div class="sc-lbl">Portfolio Value</div>
+            <div class="sc-val" id="s-total">—</div>
+            <div class="sc-sub" id="s-allgain">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Today's Gain</div>
+            <div class="sc-val" id="s-daygain">—</div>
+            <div class="sc-sub" id="s-daypct">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">All-Time Return</div>
+            <div class="sc-val" id="s-allpct">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Cost Basis</div>
+            <div class="sc-val" id="s-cost">—</div>
+            <div class="sc-sub" id="s-count">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Day P/L ($)</div>
+            <div class="sc-val" id="s-allgain-abs">—</div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="chart-row">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">Portfolio Value</div>
+              <div class="period-btns">
+                <button class="period-btn active" data-p="1M">1M</button>
+                <button class="period-btn" data-p="3M">3M</button>
+                <button class="period-btn" data-p="6M">6M</button>
+                <button class="period-btn" data-p="1Y">1Y</button>
+              </div>
+            </div>
+            <div class="port-chart-wrap">
+              <canvas id="c-portfolio"></canvas>
             </div>
           </div>
-          <div class="chart-wrap"><canvas id="c-portfolio"></canvas></div>
-        </div>
-        <div class="card">
-          <div style="font-size:14px;font-weight:600;letter-spacing:-.02em">Allocation</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">by current value</div>
-          <div class="alloc-wrap"><canvas id="c-alloc"></canvas></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- HOLDINGS ──────────────────────────────────────────────────── -->
-  <div id="tab-holdings" class="tab">
-    <div class="card">
-      <div class="tbl-hdr">
-        <h3>Holdings</h3>
-        <button class="btn" id="btn-add-pos">+ Add Position</button>
-      </div>
-      <div class="tbl-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th data-s="symbol">Symbol</th>
-              <th data-s="shares" class="col-shares">Shares</th>
-              <th data-s="avgCost" class="col-avgcost" style="text-align:right">Avg Cost</th>
-              <th data-s="price"  style="text-align:right">Price</th>
-              <th data-s="value"  style="text-align:right">Value</th>
-              <th data-s="day"    style="text-align:right">Day %</th>
-              <th data-s="ret"    style="text-align:right">Total Return</th>
-              <th data-s="div"    class="col-divyield" style="text-align:right">Div Yield</th>
-            </tr>
-          </thead>
-          <tbody id="holdings-body">
-            <tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Loading…</div></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- CALCULATOR ─────────────────────────────────────────────────── -->
-  <div id="tab-calculator" class="tab">
-    <div class="calc-layout">
-      <div class="calc-inputs card">
-        <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;margin-bottom:18px">Future Value Calculator</div>
-        <div class="inp-grp">
-          <label>Starting Value</label>
-          <div class="inp-wrap"><span class="inp-prefix">$</span><input type="number" id="c-start" value="100000" min="0"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Monthly Contribution</label>
-          <div class="inp-wrap"><span class="inp-prefix">$</span><input type="number" id="c-monthly" value="500" min="0"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Expected Annual Return</label>
-          <div class="inp-wrap"><span class="inp-prefix">%</span><input type="number" id="c-return" value="10" min="0" max="100" step="0.1"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Expected Dividend Yield</label>
-          <div class="inp-wrap"><span class="inp-prefix">%</span><input type="number" id="c-div" value="2" min="0" max="30" step="0.1"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Time Horizon (Years)</label>
-          <div class="inp-wrap no-pfx"><input type="number" id="c-years" value="20" min="1" max="50"></div>
-        </div>
-        <div class="inp-grp">
-          <label>Dividend Reinvestment</label>
-          <div class="toggle-row">
-            <span>Reinvest dividends (DRIP)</span>
-            <button class="toggle on" id="drip-toggle"></button>
+          <div class="alloc-card">
+            <div class="chart-title" style="margin-bottom:14px">Allocation</div>
+            <div class="alloc-chart-wrap">
+              <canvas id="c-alloc"></canvas>
+            </div>
           </div>
         </div>
-        <button class="btn btn-primary" id="btn-calc" style="width:100%">Calculate</button>
-      </div>
 
-      <div>
-        <div class="calc-results">
-          <div class="result-row">
-            <div class="result-item"><div class="rl">Final Value</div><div class="rv c-gain" id="r-final">—</div></div>
-            <div class="result-item"><div class="rl">Total Contributed</div><div class="rv" id="r-contrib">—</div></div>
-            <div class="result-item"><div class="rl">Growth Returns</div><div class="rv c-gain" id="r-returns">—</div></div>
-            <div class="result-item"><div class="rl">Dividends Earned</div><div class="rv c-gain" id="r-divs">—</div></div>
+        <!-- Holdings table -->
+        <div class="holdings-section">
+          <div class="holdings-header">
+            <div class="holdings-title">Positions</div>
+            <button class="btn btn-ghost" id="btn-add-pos" style="font-size:12px">+ Add Position</button>
           </div>
-          <div class="calc-chart-wrap"><canvas id="c-calc"></canvas></div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th data-s="symbol">Symbol</th>
+                  <th data-s="shares" style="text-align:right">Shares</th>
+                  <th data-s="avgCost" style="text-align:right">Avg Cost</th>
+                  <th data-s="px" style="text-align:right">Price</th>
+                  <th data-s="val" style="text-align:right">Market Value</th>
+                  <th data-s="day" style="text-align:right">Day</th>
+                  <th data-s="ret" style="text-align:right">Return</th>
+                  <th data-s="div" style="text-align:right">Div Yield</th>
+                </tr>
+              </thead>
+              <tbody id="holdings-body">
+                <tr>
+                  <td colspan="8">
+                    <div class="spinner-wrap"><div class="spinner"></div>Loading…</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /dash-content -->
+    </div>
+  </div><!-- /tab-dashboard -->
+
+  <!-- CALCULATOR TAB -->
+  <div class="tab" id="tab-calculator">
+    <div class="wrap calc-tab">
+      <div class="calc-grid">
+        <div>
+          <div class="calc-card">
+            <h3>Future Value Calculator</h3>
+
+            <div class="fg">
+              <label>Starting Value ($)</label>
+              <input type="number" id="c-start" value="10000" min="0" step="100">
+            </div>
+            <div class="fg">
+              <label>Monthly Contribution ($)</label>
+              <input type="number" id="c-monthly" value="500" min="0" step="50">
+            </div>
+            <div class="fg">
+              <label>Expected Annual Return (%)</label>
+              <input type="number" id="c-return" value="8" min="0" max="100" step="0.5">
+            </div>
+            <div class="fg">
+              <label>Dividend Yield (%)</label>
+              <input type="number" id="c-div" value="2" min="0" max="100" step="0.1">
+            </div>
+            <div class="fg">
+              <label>Time Horizon (Years)</label>
+              <input type="number" id="c-years" value="20" min="1" max="50" step="1">
+            </div>
+
+            <div class="drip-row">
+              <span class="drip-lbl">Reinvest Dividends (DRIP)</span>
+              <button type="button" class="drip-toggle on" id="drip-toggle"></button>
+            </div>
+
+            <button class="btn btn-accent" id="btn-calc" style="width:100%;justify-content:center">Calculate</button>
+
+            <div class="results-card">
+              <div class="res-item"><div class="rl">Final Value</div><div class="rv" id="r-final">—</div></div>
+              <div class="res-item"><div class="rl">Contributed</div><div class="rv" id="r-contrib">—</div></div>
+              <div class="res-item"><div class="rl">Market Returns</div><div class="rv" id="r-returns">—</div></div>
+              <div class="res-item"><div class="rl">Dividends</div><div class="rv" id="r-divs">—</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="calc-chart-card">
+          <div class="chart-title" style="margin-bottom:16px">Growth Projection</div>
+          <div class="calc-chart-wrap">
+            <canvas id="c-calc"></canvas>
+          </div>
         </div>
       </div>
     </div>
-  </div>
-</div>
+  </div><!-- /tab-calculator -->
 
-<!-- ──── FOLIO SWITCHER MODAL ─────────────────────────────────────── -->
-<div class="overlay" id="ov-folio">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h2>Portfolios</h2>
-      <button class="modal-close" data-close="ov-folio">×</button>
-    </div>
-    <div class="modal-body">
-      <div id="folio-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-        <div class="spinner-wrap" style="padding:16px"><div class="spinner"></div></div>
-      </div>
-      <button class="btn btn-primary" id="btn-create-folio" style="width:100%">+ Create New Portfolio</button>
-    </div>
-  </div>
-</div>
+</div><!-- /app-shell -->
 
-<!-- ──── SETTINGS MODAL ─────────────────────────────────────────────── -->
+<!-- ── OVERLAYS ─────────────────────────────────────────────── -->
+
+<!-- Settings -->
 <div class="overlay" id="ov-settings">
-  <div class="modal">
-    <div class="modal-hdr">
-      <h2>Settings</h2>
-      <button class="modal-close" data-close="ov-settings">×</button>
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>Settings <span id="settings-folio-name" style="color:var(--muted);font-size:13px"></span></h2>
+      <button class="btn btn-icon" data-close="ov-settings">✕</button>
     </div>
     <div class="modal-body">
 
       <div class="set-section">
-        <h3>API Keys</h3>
-        <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:5px">Alpha Vantage Key <a href="https://www.alphavantage.co/support/#api-key" target="_blank">(free)</a></label>
-          <input type="text" class="set-input" id="set-avkey" placeholder="Your Alpha Vantage API key…">
+        <h3>Alpha Vantage API Key</h3>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="set-avkey" placeholder="Paste your Alpha Vantage API key…"
+            style="flex:1;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none">
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">
+          Free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> (25 req/min, no credit card)
         </div>
       </div>
 
       <div class="set-section">
-        <h3>Positions <span id="settings-folio-name" style="color:var(--accent);font-weight:400;text-transform:none;font-size:12px;letter-spacing:0"></span></h3>
-        <div style="display:grid;grid-template-columns:90px 1fr 1fr 32px;gap:7px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:8px">
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Symbol</span>
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Shares</span>
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Avg Cost</span>
-          <span></span>
+        <h3>Positions</h3>
+        <div class="h-editor-header">
+          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div></div>
         </div>
-        <div class="h-editor" id="h-editor"></div>
-        <button class="add-btn" id="add-holding">+ Add Position</button>
+        <div id="h-editor"></div>
+        <div class="set-row">
+          <button class="btn btn-ghost" id="add-holding" style="font-size:12px">+ Add Position</button>
+        </div>
       </div>
 
       <div class="set-section">
-        <h3>Data</h3>
+        <h3>Import / Export</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-sm" id="btn-export">⬇ Export JSON</button>
-          <button class="btn btn-sm" id="btn-import">⬆ Import JSON</button>
-          <button class="btn btn-sm" id="btn-clear-cache">↺ Clear Quote Cache</button>
+          <button class="btn btn-ghost" id="btn-export" style="font-size:12px">⬇ Export JSON</button>
+          <button class="btn btn-ghost" id="btn-import" style="font-size:12px">⬆ Import JSON</button>
+          <button class="btn btn-ghost" id="btn-clear-cache" style="font-size:12px">🗑 Clear Quote Cache</button>
+          <input type="file" id="import-file" accept=".json" style="display:none">
         </div>
-        <input type="file" id="import-file" accept=".json" style="display:none">
       </div>
 
-      <div class="row-end">
-        <button class="btn" data-close="ov-settings">Cancel</button>
-        <button class="btn btn-primary" id="save-settings">Save Positions</button>
-      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="ov-settings">Cancel</button>
+      <button class="btn btn-accent" id="save-settings">Save Changes</button>
     </div>
   </div>
 </div>
 
-<!-- ──── STOCK DETAIL MODAL ─────────────────────────────────────────── -->
+<!-- Portfolio Manager -->
+<div class="overlay" id="ov-folio">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>My Portfolios</h2>
+      <button class="btn btn-icon" data-close="ov-folio">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="folio-list">
+        <div class="spinner-wrap"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="ov-folio">Close</button>
+      <button class="btn btn-accent" id="btn-create-folio">+ New Portfolio</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stock Detail -->
 <div class="overlay" id="ov-stock">
-  <div class="modal wide">
-    <div class="modal-hdr">
+  <div class="modal modal-lg">
+    <div class="modal-header">
       <h2 id="stk-modal-title">—</h2>
-      <button class="modal-close" data-close="ov-stock">×</button>
+      <button class="btn btn-icon" data-close="ov-stock">✕</button>
     </div>
     <div class="modal-body" id="stk-modal-body">
       <div class="spinner-wrap"><div class="spinner"></div>Loading…</div>
@@ -615,7 +615,10 @@ tbody tr:last-child td { border-bottom:none; }
   </div>
 </div>
 
-<!-- ──── TOASTS ───────────────────────────────────────────────────── -->
-<div id="toast-container"></div>
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script type="module" src="./dashboard.js"></script>
+
 </body>
 </html>

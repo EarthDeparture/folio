@@ -13,6 +13,20 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
   },
 });
 
+// ──── AUTH STATE OBSERVER ───────────────────────────────────────
+export function setupAuthObserver() {
+  sb.auth.onAuthStateChange((event, session) => {
+    const signOutBtn = document.getElementById('sign-out-btn');
+
+    // Show sign-out button if user is logged in
+    if (session && signOutBtn) {
+      signOutBtn.style.display = 'inline-block';
+    } else {
+      signOutBtn.style.display = 'none';
+    }
+  });
+}
+
 // ── DOM REFS ───────────────────────────────────────────────────
 const titleEl         = () => document.getElementById('auth-title');
 const subtitleEl      = () => document.getElementById('auth-subtitle');

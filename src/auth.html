@@ -217,6 +217,23 @@ a { color:var(--accent); text-decoration:none; }
   font-weight:600;
 }
 
+/* ──── SIGN OUT BUTTON ─────────────────────────────────────────── */
+.sign-out-btn {
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--muted);
+  font-size:13px;
+  font-weight:500;
+  padding:8px 16px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.sign-out-btn:hover {
+  border-color:var(--loss);
+  color:var(--loss);
+}
+
 /* ──── RESPONSIVE ─────────────────────────────────────────────── */
 @media (max-width:480px) {
   .auth-card {
@@ -240,6 +257,9 @@ a { color:var(--accent); text-decoration:none; }
     <div class="error-title" id="error-title">Authentication Failed</div>
     <div class="error-message" id="error-message">Something went wrong. Please try again.</div>
   </div>
+
+  <!-- Sign Out Button -->
+  <button type="button" class="sign-out-btn" id="sign-out-btn" style="display:none">Sign Out</button>
 
   <!-- Loading State -->
   <div class="auth-loading" id="auth-loading">
@@ -275,7 +295,11 @@ a { color:var(--accent); text-decoration:none; }
 </div>
 
 <script type="module">
-import { showError, showLoading, signIn, signUp, resetForm, sb } from './auth.js';
+import { showError, showLoading, signIn, signUp, resetForm, sb, setupAuthObserver } from './auth.js';
+import { setupSignOutHandler } from './main.js';
+
+setupSignOutHandler();
+setupAuthObserver();
 
 const titleEl = document.getElementById('auth-title');
 const subtitleEl = document.getElementById('auth-subtitle');
@@ -340,9 +364,20 @@ formEl.addEventListener('submit', async (e) => {
   }
 });
 
-// Check URL for error
+// Check URL hash — auto-select signup tab or show error
 const hash = window.location.hash;
-if (hash.includes('error_description')) {
+if (hash === '#signup') {
+  tabs.forEach(t => t.classList.remove('active'));
+  const signupTab = document.querySelector('[data-tab="signup"]');
+  if (signupTab) {
+    signupTab.classList.add('active');
+    currentMode = 'signup';
+    titleEl.textContent = 'Create Account';
+    subtitleEl.textContent = 'Get started in seconds. No credit card required.';
+    submitBtn.textContent = 'Create Account';
+  }
+  window.location.hash = '';
+} else if (hash.includes('error_description')) {
   const errorMatch = hash.match(/error_description=([^&]+)/);
   if (errorMatch) {
     const error = decodeURIComponent(errorMatch[1]);
