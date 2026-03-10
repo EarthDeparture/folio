@@ -5,10 +5,17 @@ export default defineConfig({
   // The 'VITE_' prefix is required — variables without it are excluded
   envPrefix: 'VITE_',
   build: {
-    // Keep the single-file app structure
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: './src/index.html',
+        main: '/src/index.html',
+      },
+      output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
   },

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && mv dist/src/index.html dist/index.html && rm -rf dist/src",
     "preview": "vite preview"
   },
   "repository": {
