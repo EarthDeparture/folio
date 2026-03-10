@@ -141,10 +141,10 @@ const DB = {
   },
 
   async createPortfolio(name) {
-    // Pass owner explicitly — the trigger uses COALESCE so this is safe.
-    // Defense-in-depth: if auth.uid() resolves to null in the trigger,
-    // the explicit owner ensures the NOT NULL constraint is satisfied.
-    if (!S.user?.id) throw new Error('Not authenticated — please sign in again.');
+    // Defensive approach: pass owner from client AND rely on trigger as safety net
+    // Client-side: explicit owner ensures NOT NULL constraint is satisfied
+    // Trigger: backup in case client auth fails or trigger has issues
+    if (!S.user?.id) throw new Error('Not authenticated - please sign in again.');
     const { data, error } = await S.db
       .from('portfolios')
       .insert({ name: name.trim(), owner: S.user.id })
