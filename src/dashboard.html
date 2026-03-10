@@ -283,6 +283,24 @@ input, select, button { font-family:var(--sans); }
 .fi-meta { font-size:11px; color:var(--muted); margin-top:2px; }
 .folio-actions { display:flex; gap:6px; align-items:center; }
 
+/* ── TEXT INPUT (create portfolio modal) ─────────────────────── */
+.text-input {
+  width:100%; padding:12px 16px;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:10px; color:var(--text);
+  font-family:var(--sans); font-size:14px;
+  outline:none; transition:border-color .15s;
+}
+.text-input:focus { border-color:var(--accent); }
+.text-input.error { border-color:var(--loss); box-shadow:0 0 0 3px rgba(240,72,110,.1); }
+.text-input::placeholder { color:var(--muted); opacity:.5; }
+.input-label {
+  display:block; font-size:11px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.07em;
+  color:var(--muted); margin-bottom:8px;
+}
+.input-hint { font-size:11px; color:var(--muted); margin-top:6px; }
+
 /* ── STOCK MODAL ── */
 .stk-hdr { display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
 .stk-icon {
@@ -585,12 +603,12 @@ input, select, button { font-family:var(--sans); }
 
 <!-- Portfolio Manager -->
 <div class="overlay" id="ov-folio">
-  <div class="modal modal-md">
+  <div class="modal modal-lg">
     <div class="modal-header">
       <h2>My Portfolios</h2>
       <button class="btn btn-icon" data-close="ov-folio">✕</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" id="folio-body">
       <div id="folio-list">
         <div class="spinner-wrap"><div class="spinner"></div></div>
       </div>
@@ -598,6 +616,32 @@ input, select, button { font-family:var(--sans); }
     <div class="modal-footer">
       <button class="btn btn-ghost" data-close="ov-folio">Close</button>
       <button class="btn btn-accent" id="btn-create-folio">+ New Portfolio</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create Portfolio Modal -->
+<div class="overlay" id="ov-create-folio">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>New Portfolio</h2>
+      <button class="btn btn-icon" data-close="ov-create-folio">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="input-label" for="new-folio-name">Portfolio Name</label>
+      <input
+        type="text"
+        id="new-folio-name"
+        class="text-input"
+        placeholder="e.g. RRSP, TFSA, Growth Account"
+        maxlength="50"
+        autocomplete="off"
+      >
+      <div class="input-hint">Up to 50 characters. Press Enter to create.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="ov-create-folio">Cancel</button>
+      <button class="btn btn-accent" id="confirm-create-folio">Create</button>
     </div>
   </div>
 </div>

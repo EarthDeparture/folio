@@ -141,10 +141,13 @@ const DB = {
   },
 
   async createPortfolio(name) {
-    // owner is auto-set by the BEFORE INSERT trigger (set_portfolio_owner)
+    // Pass owner explicitly — the trigger uses COALESCE so this is safe.
+    // Defense-in-depth: if auth.uid() resolves to null in the trigger,
+    // the explicit owner ensures the NOT NULL constraint is satisfied.
+    if (!S.user?.id) throw new Error('Not authenticated — please sign in again.');
     const { data, error } = await S.db
       .from('portfolios')
-      .insert({ name })
+      .insert({ name: name.trim(), owner: S.user.id })
       .select()
       .single();
 
@@ -681,19 +684,52 @@ window._deleteFolio = async (id, name) => {
   } catch(e) { /* already handled in DB layer */ }
 };
 
-async function createFolio() {
-  const name = prompt('Portfolio name:');
-  if (!name?.trim()) return;
+// ── CREATE PORTFOLIO MODAL ──────────────────────────────────────
+function openCreateFolioModal() {
+  const nameInput = $('new-folio-name');
+  nameInput.value = '';
+  nameInput.classList.remove('error');
+  $('ov-create-folio').classList.add('open');
+  // Focus after the overlay transition completes
+  setTimeout(() => nameInput.focus(), 50);
+}
+
+async function confirmCreateFolio() {
+  const nameInput = $('new-folio-name');
+  const name = nameInput.value.trim();
+  const btn = $('confirm-create-folio');
+
+  if (!name) {
+    nameInput.classList.add('error');
+    nameInput.focus();
+    return;
+  }
+
+  if (name.length > 50) {
+    toast('Portfolio name too long (max 50 characters)', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
   try {
-    const folio = await DB.createPortfolio(name.trim());
+    const folio = await DB.createPortfolio(name);
     S.portfolios.push(folio);
     S.currentFolioId = folio.id;
     S.positions = [];
     localStorage.setItem('folio_current_id', folio.id);
+    closeOverlay('ov-create-folio');
     closeOverlay('ov-folio');
-    updateFolioPill(); renderDash(); renderHoldings();
+    updateFolioPill();
+    renderDash();
+    renderHoldings();
     toast(`Created: ${folio.name}`);
-  } catch(e) { /* already handled in DB layer */ }
+  } catch (e) {
+    // Error already surfaced by handleDbError in DB layer
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create';
+  }
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
@@ -862,7 +898,20 @@ function initEvents() {
   $('btn-settings')?.addEventListener('click', openSettings);
   $('btn-add-pos')?.addEventListener('click', openSettings);
   $('dash-create-btn')?.addEventListener('click', openFolioModal);
-  $('btn-create-folio')?.addEventListener('click', createFolio);
+  $('btn-create-folio')?.addEventListener('click', openCreateFolioModal);
+  $('confirm-create-folio')?.addEventListener('click', confirmCreateFolio);
+
+  // Clear error when user types in the name input
+  $('new-folio-name')?.addEventListener('input', function() {
+    this.classList.remove('error');
+  });
+
+  // Submit on Enter key
+  $('new-folio-name')?.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      confirmCreateFolio();
+    }
+  });
   $('save-settings')?.addEventListener('click', saveSettings);
   $('add-holding')?.addEventListener('click', () => {
     S.positions.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null });
