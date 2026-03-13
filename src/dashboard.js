@@ -1367,7 +1367,7 @@ async function saveSettings() {
     const cost    = parseFloat(r.querySelector('.hc').value);
     const target  = parseFloat(r.querySelector('.ht').value);
     const classId = r.querySelector('.hcls')?.value || null;
-    if (sym && shares > 0 && cost >= 0) {
+    if (sym && shares >= 0 && cost >= 0) {
       const existing = S.positions.find(p => p.symbol === sym);
       const color    = existing?.color || COLORS[i % COLORS.length];
       const tw       = isNaN(target) ? 0 : target;
