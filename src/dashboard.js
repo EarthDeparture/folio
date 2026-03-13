@@ -179,17 +179,18 @@ const DB = {
     return data || [];
   },
 
-  async upsertPosition(folioId, symbol, shares, avgCost, color) {
+  async upsertPosition(folioId, symbol, shares, avgCost, color, targetWeight) {
     const { data, error } = await S.db
       .from('positions')
       .upsert(
         {
-          folio_id:   folioId,
-          symbol:     symbol.toUpperCase(),
+          folio_id:      folioId,
+          symbol:        symbol.toUpperCase(),
           shares,
-          avg_cost:   avgCost,
+          avg_cost:      avgCost,
           color,
-          updated_at: new Date().toISOString(),
+          target_weight: targetWeight ?? 0,
+          updated_at:    new Date().toISOString(),
         },
         { onConflict: 'folio_id,symbol' }
       )
@@ -339,6 +340,7 @@ const Port = {
     }, 0);
   },
   rows() {
+    const total = S.positions.reduce((s, h) => s + (S.quotes[h.symbol]?.price ?? 0) * h.shares, 0);
     return S.positions.map((h, i) => {
       const q   = S.quotes[h.symbol];
       const px  = q?.price ?? null;
@@ -347,7 +349,34 @@ const Port = {
       const ret = val != null && cost > 0 ? ((val - cost) / cost) * 100 : null;
       const day = q?.changesPercentage ?? null;
       const div = q?.dividendYield ? q.dividendYield * 100 : 0;
-      return { ...h, avgCost: h.avg_cost, px, val, cost, ret, day, div, name: q?.name || h.symbol, color: h.color || COLORS[i % COLORS.length] };
+      const targetWeight = typeof h.target_weight === 'number' ? h.target_weight : 0;
+      const weight = total > 0 && val != null ? (val / total) * 100 : null;
+
+      let buyShares = null;
+      if (targetWeight > 0 && weight != null && px != null && px > 0) {
+        const delta = targetWeight - weight;
+        if (delta > 0.1) {
+          const targetValue = (targetWeight / 100) * total;
+          const toInvest = targetValue - val;
+          if (toInvest > 0) buyShares = toInvest / px;
+        }
+      }
+
+      return {
+        ...h,
+        avgCost: h.avg_cost,
+        px,
+        val,
+        cost,
+        ret,
+        day,
+        div,
+        targetWeight,
+        weight,
+        buyShares,
+        name: q?.name || h.symbol,
+        color: h.color || COLORS[i % COLORS.length],
+      };
     });
   },
 };
@@ -492,8 +521,17 @@ function renderHoldings() {
         <div class="mono ${h.ret != null ? 'c-' + sign(h.ret) : 'c-muted'}">${h.ret != null ? f.pct(h.ret) : '—'}</div>
         <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val != null ? h.val - h.cost : null)}</div>
       </td>
-      <td class="mono col-divyield" style="text-align:right;color:${h.div > 0 ? 'var(--gain)' : 'var(--muted)'}">
-        ${h.div > 0 ? f.pct(h.div) : '—'}
+      <td class="mono col-divyield" style="text-align:right;color:var(--muted)">
+        ${
+          h.weight != null
+            ? `${f.pct(h.weight, 1)}${h.targetWeight > 0 ? ' / ' + f.pct(h.targetWeight, 1) : ''}`
+            : '—'
+        }
+        ${
+          h.buyShares && h.buyShares > 0.01
+            ? `<div style="font-size:10px;color:var(--muted)">Buy ~${h.buyShares >= 10 ? f.num(h.buyShares, 0) : f.num(h.buyShares, 2)} sh</div>`
+            : ''
+        }
       </td>
     </tr>`).join('');
   tbody.querySelectorAll('tr[data-sym]').forEach(row =>
@@ -759,6 +797,7 @@ function renderEditor() {
       <input type="text" class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
       <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
       <input type="number" class="hc" placeholder="Avg $" value="${h.avg_cost}" min="0" step="any">
+      <input type="number" class="ht" placeholder="10" value="${typeof h.target_weight === 'number' ? h.target_weight : 0}" min="0" max="100" step="0.1">
       <button class="rm-btn" data-sym="${h.symbol}">×</button>
     </div>`).join('');
 
@@ -809,11 +848,13 @@ async function saveSettings() {
     const sym    = r.querySelector('.hs').value.trim().toUpperCase();
     const shares = parseFloat(r.querySelector('.hq').value);
     const cost   = parseFloat(r.querySelector('.hc').value);
+    const target = parseFloat(r.querySelector('.ht').value);
     if (sym && shares > 0 && cost >= 0) {
       const existing = S.positions.find(p => p.symbol === sym);
       const color    = existing?.color || COLORS[i % COLORS.length];
-      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color });
-      saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, color));
+      const tw       = isNaN(target) ? 0 : target;
+      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color, target_weight: tw });
+      saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, color, tw));
     }
   });
 
@@ -957,10 +998,19 @@ function initEvents() {
       const cost   = parseFloat(r.querySelector('.hc').value);
       const existing = S.positions.find(p => p.symbol === sym);
       const color    = existing?.color || COLORS[i % COLORS.length];
-      return { symbol: sym, shares: isNaN(shares) ? 0 : shares, avg_cost: isNaN(cost) ? 0 : cost, folio_id: S.currentFolioId, color };
+      const targetEl = r.querySelector('.ht');
+      const target   = targetEl ? parseFloat(targetEl.value) : NaN;
+      return {
+        symbol: sym,
+        shares: isNaN(shares) ? 0 : shares,
+        avg_cost: isNaN(cost) ? 0 : cost,
+        folio_id: S.currentFolioId,
+        color,
+        target_weight: isNaN(target) ? 0 : target,
+      };
     });
 
-    editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null });
+    editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null, target_weight:0 });
     renderEditor();
   });
 

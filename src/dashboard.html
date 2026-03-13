@@ -248,7 +248,7 @@ input, select, button { font-family:var(--sans); }
 }
 
 /* ── SETTINGS EDITOR ── */
-.h-row { display:grid; grid-template-columns:100px 1fr 1fr 36px; gap:8px; align-items:center; margin-bottom:8px; }
+.h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 36px; gap:8px; align-items:center; margin-bottom:8px; }
 .h-row input {
   padding:9px 12px; background:var(--card); border:1px solid var(--border);
   border-radius:8px; color:var(--text); font-family:var(--mono);
@@ -265,7 +265,7 @@ input, select, button { font-family:var(--sans); }
 .set-section h3 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
 .set-row { display:flex; gap:8px; margin-top:10px; align-items:flex-start; }
 .h-editor-header {
-  display:grid; grid-template-columns:100px 1fr 1fr 36px; gap:8px;
+  display:grid; grid-template-columns:100px 1fr 1fr 80px 36px; gap:8px;
   margin-bottom:6px; font-size:10px; font-weight:600; text-transform:uppercase;
   letter-spacing:.07em; color:var(--muted); padding:0 2px;
 }
@@ -475,7 +475,7 @@ input, select, button { font-family:var(--sans); }
                   <th data-s="val" style="text-align:right">Market Value</th>
                   <th data-s="day" style="text-align:right">Day</th>
                   <th data-s="ret" style="text-align:right">Return</th>
-                  <th data-s="div" style="text-align:right">Div Yield</th>
+                  <th data-s="weight" style="text-align:right">Alloc Plan</th>
                 </tr>
               </thead>
               <tbody id="holdings-body">
@@ -575,7 +575,7 @@ input, select, button { font-family:var(--sans); }
       <div class="set-section">
         <h3>Positions</h3>
         <div class="h-editor-header">
-          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div></div>
+          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div>Target %</div><div></div>
         </div>
         <div id="h-editor"></div>
         <div class="set-row">

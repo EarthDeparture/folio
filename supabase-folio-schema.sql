@@ -26,6 +26,7 @@ create table folio.positions (
   shares     numeric not null check (shares > 0),
   avg_cost   numeric not null check (avg_cost >= 0),
   color      text,
+  target_weight numeric not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(folio_id, symbol)
