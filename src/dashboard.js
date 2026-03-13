@@ -213,6 +213,27 @@ const DB = {
 
   // Quotes cache write — uses service role on the server in production.
   // Client-side write is a best-effort; quote reads are always from AV.
+  async getQuote(symbol, maxAgeMs) {
+    try {
+      const { data, error } = await S.db
+        .from('quotes')
+        .select('*')
+        .eq('symbol', symbol.toUpperCase())
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      if (maxAgeMs && data.cached_at) {
+        const age = Date.now() - new Date(data.cached_at).getTime();
+        if (age > maxAgeMs) return null;
+      }
+
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
   async upsertQuote(q) {
     S.db.from('quotes').upsert({
       symbol:             q.symbol,
@@ -255,6 +276,25 @@ const API = {
   async _oneQuote(symbol) {
     const cached = Cache.get('q1_' + symbol);
     if (cached) return cached;
+
+    // Try shared DB cache (cross-user) before hitting Alpha Vantage
+    const dbQ = await DB.getQuote(symbol, CACHE_Q);
+    if (dbQ) {
+      const q = {
+        symbol:           dbQ.symbol,
+        name:             dbQ.name || dbQ.symbol,
+        price:            dbQ.price ?? null,
+        change:           dbQ.change ?? 0,
+        changesPercentage:dbQ.changes_percentage ?? 0,
+        marketCap:        dbQ.market_cap || null,
+        pe:               dbQ.pe || null,
+        yearHigh:         dbQ.year_high ?? null,
+        yearLow:          dbQ.year_low ?? null,
+        dividendYield:    dbQ.dividend_yield ?? 0,
+      };
+      Cache.set('q1_' + symbol, q, CACHE_Q);
+      return q;
+    }
 
     const d = await this._fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}`);
     const raw = d?.['Global Quote'];
@@ -523,9 +563,11 @@ function renderHoldings() {
       </td>
       <td class="mono col-divyield" style="text-align:right;color:var(--muted)">
         ${
-          h.weight != null
-            ? `${f.pct(h.weight, 1)}${h.targetWeight > 0 ? ' / ' + f.pct(h.targetWeight, 1) : ''}`
-            : '—'
+          h.weight != null && h.targetWeight > 0
+            ? `${f.pct(h.weight, 1)} / ${f.pct(h.targetWeight, 1)}`
+            : h.targetWeight > 0
+              ? `Target ${f.pct(h.targetWeight, 1)}`
+              : '—'
         }
         ${
           h.buyShares && h.buyShares > 0.01
@@ -844,6 +886,8 @@ async function saveSettings() {
   const saves = [];
   editorRows = [];
 
+  let targetSum = 0;
+
   rows.forEach((r, i) => {
     const sym    = r.querySelector('.hs').value.trim().toUpperCase();
     const shares = parseFloat(r.querySelector('.hq').value);
@@ -853,10 +897,17 @@ async function saveSettings() {
       const existing = S.positions.find(p => p.symbol === sym);
       const color    = existing?.color || COLORS[i % COLORS.length];
       const tw       = isNaN(target) ? 0 : target;
+      targetSum += tw;
       editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color, target_weight: tw });
       saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, color, tw));
     }
   });
+
+  // If any targets are set, enforce that they sum to ~100%
+  if (targetSum > 0 && Math.abs(targetSum - 100) > 0.1) {
+    toast('Target weights must sum to 100% when set.', 'error');
+    return;
+  }
 
   try {
     await Promise.all(saves);
