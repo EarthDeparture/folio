@@ -23,7 +23,7 @@ create table folio.positions (
   id         uuid    primary key default gen_random_uuid(),
   folio_id   uuid    not null references folio.portfolios(id) on delete cascade,
   symbol     text    not null check (char_length(symbol) between 1 and 10),
-  shares     numeric not null check (shares > 0),
+  shares     numeric not null check (shares >= 0),
   avg_cost   numeric not null check (avg_cost >= 0),
   color      text,
   target_weight numeric not null default 0,
