@@ -1299,6 +1299,17 @@ function renderClassEditor() {
 function renderEditor() {
   const ed = $('h-editor');
   if (!ed) return;
+
+  // Sort: ungrouped first (no class → ''), then alphabetically by class name, then market value desc within group
+  editorRows.sort((a, b) => {
+    const aName = (editorClasses.find(c => c.id === a.class_id)?.name ?? '').toLowerCase();
+    const bName = (editorClasses.find(c => c.id === b.class_id)?.name ?? '').toLowerCase();
+    if (aName !== bName) return aName.localeCompare(bName);
+    const aVal = (S.quotes[a.symbol]?.price ?? 0) * a.shares;
+    const bVal = (S.quotes[b.symbol]?.price ?? 0) * b.shares;
+    return bVal - aVal;
+  });
+
   ed.innerHTML = editorRows.map((h, i) => `
     <div class="h-row" data-i="${i}">
       <input type="text" class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
