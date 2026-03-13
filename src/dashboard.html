@@ -89,6 +89,8 @@ input, select, button { font-family:var(--sans); }
 .btn-sm:hover { border-color:var(--accent); color:var(--accent); }
 
 .upd-time { font-size:11px; color:var(--muted); flex-shrink:0; }
+.btn-ccy { padding:6px 10px; font-size:11px; font-weight:700; font-family:var(--mono); }
+.btn-ccy.cad { color:var(--accent); border-color:var(--ba); background:var(--adim); }
 
 /* ── TABS ── */
 .tab { display:none; }
@@ -419,6 +421,7 @@ tr.classed td:first-child { padding-left:28px; }
       <div class="nav-actions">
         <span class="upd-time" id="upd-time"></span>
         <button class="btn-icon btn" id="btn-refresh" title="Refresh quotes">↺</button>
+        <button class="btn btn-ghost btn-ccy" id="btn-currency" title="Switch currency">USD</button>
         <button class="btn-icon btn" id="btn-settings" title="Positions &amp; Settings">⚙</button>
         <button class="btn btn-ghost" id="btn-logout" style="padding:8px 14px">Sign Out</button>
       </div>

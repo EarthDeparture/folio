@@ -37,6 +37,8 @@ const S = {
   sortDir:        -1,
   drip:           true,
   charts:         { port: null, alloc: null, calc: null, stock: null },
+  currency:       localStorage.getItem('folio_currency') || 'USD',
+  fxRate:         1.0,
 };
 
 // Separate editor state so Settings edits do not mutate live positions
@@ -75,6 +77,23 @@ const f = {
 };
 
 const sign = n => n >= 0 ? 'gain' : 'loss';
+
+// ── FX RATE ────────────────────────────────────────────────────
+async function fetchFxRate() {
+  const cached = Cache.get('fx_usd_cad');
+  if (cached) { S.fxRate = cached; return; }
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/USD');
+    const d = await r.json();
+    const rate = d?.rates?.CAD;
+    if (rate) {
+      S.fxRate = rate;
+      Cache.set('fx_usd_cad', rate, 24 * 60 * 60 * 1000);
+    }
+  } catch(e) {
+    console.warn('[FOLIO] FX rate fetch failed:', e.message);
+  }
+}
 
 // ── TOAST ──────────────────────────────────────────────────────
 function toast(msg, type = 'success') {
@@ -710,12 +729,16 @@ function renderDash() {
   const gc = n => n >= 0 ? 'var(--gain)' : 'var(--loss)';
 
   const set = (id, txt, col) => { const el = $(id); if (!el) return; el.textContent = txt; if (col) el.style.color = col; };
-  set('s-total',   f.$(val),             gc(allG));
+  const isCad = S.currency === 'CAD';
+  const fxFmt = n => n == null ? '—' : new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: S.currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(n * (isCad ? S.fxRate : 1));
+  set('s-total',   fxFmt(val),           gc(allG));
   set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`, gc(allG));
   set('s-daygain', f.$(dayG),            gc(dayG));
   set('s-daypct',  f.pct(dayPct) + ' vs. yesterday',  gc(dayG));
   set('s-allpct',  f.pct(allPct),        gc(allG));
-  set('s-cost',    f.$(cost));
+  set('s-cost',    fxFmt(cost));
   set('s-count',   `${S.positions.length} position${S.positions.length !== 1 ? 's' : ''}`);
 
   const lu = $('upd-time');
@@ -1573,6 +1596,15 @@ function initEvents() {
     });
   });
 
+  $('btn-currency')?.addEventListener('click', () => {
+    S.currency = S.currency === 'USD' ? 'CAD' : 'USD';
+    localStorage.setItem('folio_currency', S.currency);
+    const btn = $('btn-currency');
+    btn.textContent = S.currency;
+    btn.classList.toggle('cad', S.currency === 'CAD');
+    renderDash();
+  });
+
   $('folio-pill')?.addEventListener('click', openFolioModal);
   $('btn-refresh')?.addEventListener('click', () => { Cache.clearQuotes(); loadAll(); });
   $('btn-settings')?.addEventListener('click', openSettings);
@@ -1651,6 +1683,9 @@ async function init() {
   if (fhKey) localStorage.setItem('folio_fh_key', fhKey);
 
   $('app-shell').style.display = 'block';
+  fetchFxRate();
+  const ccyBtn = $('btn-currency');
+  if (ccyBtn) { ccyBtn.textContent = S.currency; ccyBtn.classList.toggle('cad', S.currency === 'CAD'); }
 
   try {
     S.portfolios = await DB.listPortfolios();
