@@ -39,6 +39,8 @@ const S = {
   charts:         { port: null, alloc: null, calc: null, stock: null },
   currency:       localStorage.getItem('folio_currency') || 'USD',
   fxRate:         1.0,
+  showCombined:   localStorage.getItem('folio_combined') === 'true',
+  allPositions:   [],
 };
 
 // Separate editor state so Settings edits do not mutate live positions
@@ -604,6 +606,40 @@ const Port = {
   },
 };
 
+// ── COMBINED VALUE ─────────────────────────────────────────────
+async function loadAllPositions() {
+  const ids = S.portfolios.map(p => p.id);
+  if (!ids.length) { S.allPositions = []; return; }
+  try {
+    const { data: positions } = await S.db
+      .from('positions').select('symbol,shares').in('folio_id', ids);
+    S.allPositions = positions || [];
+
+    // Fetch DB-cached quotes for any symbols not yet in memory
+    const missing = [...new Set(S.allPositions.map(p => p.symbol))].filter(s => !S.quotes[s]);
+    if (missing.length) {
+      const { data: qrows } = await S.db.from('quotes').select('*').in('symbol', missing);
+      if (qrows) qrows.forEach(r => {
+        S.quotes[r.symbol] = {
+          symbol: r.symbol, name: r.name || r.symbol,
+          price: r.price ?? null, change: r.change ?? 0,
+          changesPercentage: r.changes_percentage ?? 0,
+          marketCap: r.market_cap || null, pe: r.pe || null,
+          yearHigh: r.year_high ?? null, yearLow: r.year_low ?? null,
+          dividendYield: r.dividend_yield ?? 0,
+        };
+      });
+    }
+  } catch(e) {
+    console.warn('[FOLIO] loadAllPositions failed:', e.message);
+    S.allPositions = [];
+  }
+}
+
+function combinedValue() {
+  return S.allPositions.reduce((s, p) => s + (S.quotes[p.symbol]?.price ?? 0) * p.shares, 0);
+}
+
 // ── CHART HELPERS ──────────────────────────────────────────────
 Chart.defaults.color        = '#5a6680';
 Chart.defaults.borderColor  = 'rgba(255,255,255,0.06)';
@@ -733,8 +769,18 @@ function renderDash() {
   const fxFmt = n => n == null ? '—' : new Intl.NumberFormat('en-US', {
     style: 'currency', currency: S.currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(n * (isCad ? S.fxRate : 1));
-  set('s-total',   fxFmt(val),           gc(allG));
-  set('s-allgain', `${f.$(allG)} (${f.pct(allPct)})`, gc(allG));
+
+  const displayVal = S.showCombined ? combinedValue() : val;
+  const lblEl = $('sc-lbl-total');
+  if (lblEl) lblEl.textContent = S.showCombined ? 'Combined Value' : 'Portfolio Value';
+  $('btn-combined')?.classList.toggle('active', S.showCombined);
+
+  set('s-total',   fxFmt(displayVal),    S.showCombined ? 'var(--accent)' : gc(allG));
+  set('s-allgain',
+    S.showCombined
+      ? `${S.portfolios.length} portfolio${S.portfolios.length !== 1 ? 's' : ''}`
+      : `${f.$(allG)} (${f.pct(allPct)})`,
+    S.showCombined ? 'var(--muted)' : gc(allG));
   set('s-daygain', f.$(dayG),            gc(dayG));
   set('s-daypct',  f.pct(dayPct) + ' vs. yesterday',  gc(dayG));
   set('s-allpct',  f.pct(allPct),        gc(allG));
@@ -1567,6 +1613,7 @@ async function loadAll() {
     runCalc();
     loadPortChart(S.period).catch(e => console.warn('Port chart:', e.message));
     if (document.querySelector('#tab-rebalance.active')) renderRebalance();
+    if (S.showCombined) loadAllPositions().then(() => renderDash());
   } catch(e) {
     if (tbody) tbody.innerHTML = `
       <tr><td colspan="8">
@@ -1618,6 +1665,13 @@ function initEvents() {
   $('set-currency-cad')?.addEventListener('click', () => {
     S.currency = 'CAD'; localStorage.setItem('folio_currency', 'CAD');
     updateCurrencyButtons(); renderDash();
+  });
+
+  $('btn-combined')?.addEventListener('click', async () => {
+    S.showCombined = !S.showCombined;
+    localStorage.setItem('folio_combined', S.showCombined);
+    if (S.showCombined) await loadAllPositions();
+    renderDash();
   });
 
   $('folio-pill')?.addEventListener('click', openFolioModal);
@@ -1700,6 +1754,7 @@ async function init() {
 
   $('app-shell').style.display = 'block';
   fetchFxRate();
+  if (S.showCombined) loadAllPositions().then(() => renderDash());
 
   try {
     S.portfolios = await DB.listPortfolios();

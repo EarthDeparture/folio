@@ -91,6 +91,14 @@ input, select, button { font-family:var(--sans); }
 .upd-time { font-size:11px; color:var(--muted); flex-shrink:0; }
 .btn-ccy { padding:6px 10px; font-size:11px; font-weight:700; font-family:var(--mono); }
 .btn-ccy.cad { color:var(--accent); border-color:var(--ba); background:var(--adim); }
+.btn-combined {
+  font-size:9px; font-weight:700; font-family:var(--mono); text-transform:uppercase;
+  letter-spacing:.05em; padding:2px 7px; border-radius:5px; cursor:pointer;
+  background:transparent; border:1px solid var(--border); color:var(--muted);
+  transition:all .15s; line-height:1.6;
+}
+.btn-combined:hover { border-color:var(--accent); color:var(--accent); }
+.btn-combined.active { border-color:var(--ba); color:var(--accent); background:var(--adim); }
 
 /* ── TABS ── */
 .tab { display:none; }
@@ -449,7 +457,10 @@ tr.classed td:first-child { padding-left:28px; }
         <!-- Stats -->
         <div class="stats-row">
           <div class="sc">
-            <div class="sc-lbl">Portfolio Value</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="sc-lbl" style="margin-bottom:0" id="sc-lbl-total">Portfolio Value</div>
+              <button class="btn-combined" id="btn-combined" title="Show combined total across all portfolios">All</button>
+            </div>
             <div class="sc-val" id="s-total">—</div>
             <div class="sc-sub" id="s-allgain">—</div>
           </div>
