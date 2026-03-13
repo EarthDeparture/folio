@@ -248,13 +248,19 @@ input, select, button { font-family:var(--sans); }
 }
 
 /* ── SETTINGS EDITOR ── */
-.h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 36px; gap:8px; align-items:center; margin-bottom:8px; }
+.h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 140px 36px; gap:8px; align-items:center; margin-bottom:8px; }
 .h-row input {
   padding:9px 12px; background:var(--card); border:1px solid var(--border);
   border-radius:8px; color:var(--text); font-family:var(--mono);
   font-size:12px; outline:none; width:100%;
 }
 .h-row input:focus { border-color:var(--accent); }
+.h-row select {
+  padding:9px 8px; background:var(--card); border:1px solid var(--border);
+  border-radius:8px; color:var(--text); font-family:var(--sans);
+  font-size:12px; outline:none; width:100%; cursor:pointer;
+}
+.h-row select:focus { border-color:var(--accent); }
 .rm-btn {
   width:36px; height:36px; background:transparent; border:1px solid rgba(240,72,110,.3);
   border-radius:8px; color:var(--loss); cursor:pointer; font-size:18px;
@@ -265,7 +271,7 @@ input, select, button { font-family:var(--sans); }
 .set-section h3 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
 .set-row { display:flex; gap:8px; margin-top:10px; align-items:flex-start; }
 .h-editor-header {
-  display:grid; grid-template-columns:100px 1fr 1fr 80px 36px; gap:8px;
+  display:grid; grid-template-columns:100px 1fr 1fr 80px 140px 36px; gap:8px;
   margin-bottom:6px; font-size:10px; font-weight:600; text-transform:uppercase;
   letter-spacing:.07em; color:var(--muted); padding:0 2px;
 }
@@ -358,6 +364,18 @@ input, select, button { font-family:var(--sans); }
   .nav-tabs { display:none; }
   .folio-pill { max-width:150px; }
 }
+
+/* ── SUB-CLASSES ── */
+.class-header-row td { background:rgba(255,255,255,0.03); border-top:1px solid var(--border); padding:10px 14px; }
+.class-badge { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+.class-name { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; }
+tr.classed td:first-child { padding-left:28px; }
+.class-pill { display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:9px; padding:8px 10px; }
+.class-pill input[type=text] { background:none; border:none; color:var(--text); font-family:var(--sans); font-size:13px; font-weight:600; width:110px; outline:none; }
+.class-pill input[type=number] { background:none; border:none; color:var(--accent); font-family:var(--mono); font-size:13px; font-weight:600; width:44px; text-align:right; outline:none; }
+.class-weight-sum { font-size:11px; margin-top:8px; }
+.class-weight-sum.ok { color:var(--gain); }
+.class-weight-sum.bad { color:var(--loss); }
 </style>
 </head>
 <body>
@@ -584,9 +602,17 @@ input, select, button { font-family:var(--sans); }
       </div>
 
       <div class="set-section">
+        <h3>Sub-Classes</h3>
+        <div id="classes-section"></div>
+        <div class="set-row">
+          <button class="btn btn-ghost" id="add-class" style="font-size:12px">+ Add Sub-Class</button>
+        </div>
+      </div>
+
+      <div class="set-section">
         <h3>Positions</h3>
         <div class="h-editor-header">
-          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div>Target %</div><div></div>
+          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div>Target %</div><div>Class</div><div></div>
         </div>
         <div id="h-editor"></div>
         <div class="set-row">

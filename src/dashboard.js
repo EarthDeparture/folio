@@ -30,6 +30,7 @@ const S = {
   portfolios:     [],
   currentFolioId: localStorage.getItem('folio_current_id') || null,
   positions:      [],
+  classes:        [],
   quotes:         {},
   period:         '1M',
   sortCol:        'value',
@@ -40,6 +41,9 @@ const S = {
 
 // Separate editor state so Settings edits do not mutate live positions
 let editorRows = [];
+let editorClasses = [];
+let _deletedClassIds = [];
+let _originalClassIds = [];
 
 // Track gain state for port chart gradient closure
 let portChartIsGain = true;
@@ -187,7 +191,7 @@ const DB = {
     return data || [];
   },
 
-  async upsertPosition(folioId, symbol, shares, avgCost, color, targetWeight) {
+  async upsertPosition(folioId, symbol, shares, avgCost, color, targetWeight, classId = null) {
     const { data, error } = await S.db
       .from('positions')
       .upsert(
@@ -198,6 +202,7 @@ const DB = {
           avg_cost:      avgCost,
           color,
           target_weight: targetWeight ?? 0,
+          class_id:      classId || null,
           updated_at:    new Date().toISOString(),
         },
         { onConflict: 'folio_id,symbol' }
@@ -206,6 +211,42 @@ const DB = {
       .single();
     if (error) { handleDbError(error, `upsertPosition ${symbol}`); throw error; }
     return data;
+  },
+
+  async listClasses(folioId) {
+    const { data, error } = await S.db
+      .from('classes')
+      .select('*')
+      .eq('folio_id', folioId)
+      .order('sort_order', { ascending: true });
+    if (error) { handleDbError(error, 'listClasses'); throw error; }
+    return data || [];
+  },
+
+  async upsertClass(folioId, { id, name, targetWeight, color, sortOrder }) {
+    const { data, error } = await S.db
+      .from('classes')
+      .upsert(
+        {
+          id:            id,
+          folio_id:      folioId,
+          name:          (name || 'Unnamed').trim(),
+          target_weight: targetWeight ?? 0,
+          color:         color || null,
+          sort_order:    sortOrder ?? 0,
+          updated_at:    new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      )
+      .select()
+      .single();
+    if (error) { handleDbError(error, `upsertClass ${name}`); throw error; }
+    return data;
+  },
+
+  async deleteClass(id) {
+    const { error } = await S.db.from('classes').delete().eq('id', id);
+    if (error) { handleDbError(error, `deleteClass ${id}`); throw error; }
   },
 
   async deletePosition(folioId, symbol) {
@@ -487,6 +528,14 @@ const Port = {
   },
   rows() {
     const total = S.positions.reduce((s, h) => s + (S.quotes[h.symbol]?.price ?? 0) * h.shares, 0);
+    // Pre-compute per-class total values for intra-class % calculation
+    const classVals = {};
+    S.positions.forEach(h => {
+      if (h.class_id) {
+        classVals[h.class_id] = (classVals[h.class_id] || 0) + (S.quotes[h.symbol]?.price ?? 0) * h.shares;
+      }
+    });
+
     return S.positions.map((h, i) => {
       const q   = S.quotes[h.symbol];
       const px  = q?.price ?? null;
@@ -495,8 +544,13 @@ const Port = {
       const ret = val != null && cost > 0 ? ((val - cost) / cost) * 100 : null;
       const day = q?.changesPercentage ?? null;
       const div = q?.dividendYield ? q.dividendYield * 100 : 0;
-      const targetWeight = typeof h.target_weight === 'number' ? h.target_weight : 0;
-      const weight = total > 0 && val != null ? (val / total) * 100 : null;
+      const cls      = S.classes.find(c => c.id === h.class_id) ?? null;
+      const intraTgt = typeof h.target_weight === 'number' ? h.target_weight : 0;
+      // Effective portfolio target %: class × intra-class when classified, else direct
+      const targetWeight = cls ? (cls.target_weight * intraTgt) / 100 : intraTgt;
+      const weight   = total > 0 && val != null ? (val / total) * 100 : null;
+      const intraWeight = cls && classVals[cls.id] > 0 && val != null
+        ? (val / classVals[cls.id]) * 100 : null;
 
       let buyShares = null;
       if (targetWeight > 0 && weight != null && px != null && px > 0) {
@@ -518,6 +572,9 @@ const Port = {
         day,
         div,
         targetWeight,
+        intraTgt,
+        intraWeight,
+        cls,
         weight,
         buyShares,
         name: q?.name || h.symbol,
@@ -666,20 +723,19 @@ function renderDash() {
   buildAllocChart(Port.rows());
 }
 
-function renderHoldings() {
-  const tbody = $('holdings-body');
-  if (!tbody) return;
-  let rows = Port.rows();
-  rows.sort((a, b) => {
-    const va = a[S.sortCol] ?? 0, vb = b[S.sortCol] ?? 0;
-    return typeof va === 'string' ? va.localeCompare(vb) * S.sortDir : (va - vb) * S.sortDir;
-  });
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No positions yet. Add them in Settings (⚙).</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map(h => `
-    <tr data-sym="${h.symbol}">
+function renderPositionRow(h, isClassed) {
+  const allocCell = h.cls
+    ? `${h.intraWeight != null ? f.pct(h.intraWeight, 1) : '—'} / ${h.intraTgt > 0 ? f.pct(h.intraTgt, 1) : '—'}
+       <div style="font-size:10px;color:var(--muted)">= ${h.weight != null ? f.pct(h.weight, 1) : '—'} portfolio</div>
+       ${h.buyShares && h.buyShares > 0.01 ? `<div style="font-size:10px;color:var(--muted)">Buy ~${h.buyShares >= 10 ? f.num(h.buyShares, 0) : f.num(h.buyShares, 2)} sh</div>` : ''}`
+    : `${h.weight != null && h.targetWeight > 0
+          ? `${f.pct(h.weight, 1)} / ${f.pct(h.targetWeight, 1)}`
+          : h.targetWeight > 0
+            ? `Target ${f.pct(h.targetWeight, 1)}`
+            : '—'
+      }${h.buyShares && h.buyShares > 0.01 ? `<div style="font-size:10px;color:var(--muted)">Buy ~${h.buyShares >= 10 ? f.num(h.buyShares, 0) : f.num(h.buyShares, 2)} sh</div>` : ''}`;
+  return `
+    <tr data-sym="${h.symbol}"${isClassed ? ' class="classed"' : ''}>
       <td>
         <div class="sym-cell">
           <div class="sym-badge" style="background:${h.color}1a;border:1px solid ${h.color}33;color:${h.color}">${h.symbol.slice(0,4)}</div>
@@ -695,21 +751,70 @@ function renderHoldings() {
         <div class="mono ${h.ret != null ? 'c-' + sign(h.ret) : 'c-muted'}">${h.ret != null ? f.pct(h.ret) : '—'}</div>
         <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val != null ? h.val - h.cost : null)}</div>
       </td>
-      <td class="mono col-divyield" style="text-align:right;color:var(--muted)">
-        ${
-          h.weight != null && h.targetWeight > 0
-            ? `${f.pct(h.weight, 1)} / ${f.pct(h.targetWeight, 1)}`
-            : h.targetWeight > 0
-              ? `Target ${f.pct(h.targetWeight, 1)}`
-              : '—'
-        }
-        ${
-          h.buyShares && h.buyShares > 0.01
-            ? `<div style="font-size:10px;color:var(--muted)">Buy ~${h.buyShares >= 10 ? f.num(h.buyShares, 0) : f.num(h.buyShares, 2)} sh</div>`
-            : ''
-        }
-      </td>
-    </tr>`).join('');
+      <td class="mono col-divyield" style="text-align:right;color:var(--muted)">${allocCell}</td>
+    </tr>`;
+}
+
+function renderHoldings() {
+  const tbody = $('holdings-body');
+  if (!tbody) return;
+  const rows = Port.rows();
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No positions yet. Add them in Settings (⚙).</td></tr>`;
+    return;
+  }
+
+  const sortFn = (a, b) => {
+    const va = a[S.sortCol] ?? 0, vb = b[S.sortCol] ?? 0;
+    return typeof va === 'string' ? va.localeCompare(vb) * S.sortDir : (va - vb) * S.sortDir;
+  };
+
+  if (!S.classes.length) {
+    // No classes — flat table (zero regression from previous behaviour)
+    rows.sort(sortFn);
+    tbody.innerHTML = rows.map(h => renderPositionRow(h, false)).join('');
+  } else {
+    // Grouped by class
+    const total      = rows.reduce((s, h) => s + (h.val || 0), 0);
+    const ungrouped  = rows.filter(h => !h.cls).sort(sortFn);
+    const html       = [];
+
+    if (ungrouped.length) {
+      html.push(`<tr class="class-header-row"><td colspan="8"><span class="class-name" style="color:var(--muted)">Ungrouped</span></td></tr>`);
+      html.push(...ungrouped.map(h => renderPositionRow(h, false)));
+    }
+
+    for (const cls of S.classes) {
+      const clsRows = rows.filter(h => h.cls?.id === cls.id).sort(sortFn);
+      if (!clsRows.length) continue;
+      const clsVal  = clsRows.reduce((s, h) => s + (h.val || 0), 0);
+      const clsPct  = total > 0 ? (clsVal / total * 100) : 0;
+      const clsDayG = clsRows.reduce((s, h) => {
+        if (h.px == null || h.day == null) return s;
+        const prev = h.px / (1 + h.day / 100);
+        return s + (h.px - prev) * h.shares;
+      }, 0);
+      const underweight = cls.target_weight > 0 && clsPct < cls.target_weight - 0.1;
+      const buyHint = underweight
+        ? `<span style="font-size:10px;color:var(--muted);margin-left:8px">· Buy ~${f.$((cls.target_weight / 100) * total - clsVal, 0)}</span>`
+        : '';
+      html.push(`
+        <tr class="class-header-row">
+          <td colspan="8">
+            <span class="class-badge" style="background:${cls.color || '#5a6680'}"></span>
+            <span class="class-name">${cls.name}</span>
+            <span class="mono" style="margin-left:16px;font-size:12px">${f.$(clsVal)}</span>
+            <span style="margin-left:10px;font-size:11px;color:var(--muted)">${f.pct(clsPct, 1)} / ${f.pct(cls.target_weight, 1)} target</span>
+            <span class="mono ${sign(clsDayG)}" style="margin-left:10px;font-size:11px">${f.$(clsDayG)}</span>
+            ${buyHint}
+          </td>
+        </tr>`);
+      html.push(...clsRows.map(h => renderPositionRow(h, true)));
+    }
+
+    tbody.innerHTML = html.join('');
+  }
+
   tbody.querySelectorAll('tr[data-sym]').forEach(row =>
     row.addEventListener('click', () => openStock(row.dataset.sym))
   );
@@ -990,9 +1095,68 @@ function openSettings() {
   }
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
   $('settings-folio-name').textContent = folio ? `— ${folio.name}` : '';
+  editorClasses     = S.classes.map(c => ({ ...c }));
+  _originalClassIds = S.classes.map(c => c.id);
+  _deletedClassIds  = [];
   editorRows = S.positions.map(p => ({ ...p }));
+  renderClassEditor();
   renderEditor();
   $('ov-settings').classList.add('open');
+}
+
+function syncEditorRowsFromDOM() {
+  document.querySelectorAll('#h-editor .h-row').forEach((r, i) => {
+    if (!editorRows[i]) return;
+    editorRows[i].symbol        = r.querySelector('.hs')?.value.trim().toUpperCase() || '';
+    editorRows[i].shares        = parseFloat(r.querySelector('.hq')?.value) || 0;
+    editorRows[i].avg_cost      = parseFloat(r.querySelector('.hc')?.value) || 0;
+    editorRows[i].target_weight = parseFloat(r.querySelector('.ht')?.value) || 0;
+    editorRows[i].class_id      = r.querySelector('.hcls')?.value || null;
+  });
+}
+
+function renderClassEditor() {
+  const section = $('classes-section');
+  if (!section) return;
+  const sum   = editorClasses.reduce((s, c) => s + (c.target_weight || 0), 0);
+  const sumOk = editorClasses.length === 0 || Math.abs(sum - 100) < 0.01 || sum === 0;
+  section.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:${editorClasses.length ? '8px' : '0'}">
+      ${editorClasses.map((cls, i) => `
+        <div class="class-pill" data-i="${i}">
+          <span class="class-badge" style="background:${cls.color || COLORS[i % COLORS.length]}"></span>
+          <input type="text" class="cp-name" placeholder="Name" value="${(cls.name || '').replace(/"/g, '&quot;')}" maxlength="50">
+          <input type="number" class="cp-tw" placeholder="0" value="${cls.target_weight}" min="0" max="100" step="0.1">
+          <span style="font-size:11px;color:var(--muted)">%</span>
+          <button class="rm-btn cp-del" style="width:24px;height:24px;font-size:14px" data-i="${i}">×</button>
+        </div>`).join('')}
+    </div>
+    ${editorClasses.length ? `<div class="class-weight-sum ${sumOk ? 'ok' : 'bad'}">Class weights: ${f.num(sum, 1)}% / 100%</div>` : ''}`;
+
+  section.querySelectorAll('.class-pill').forEach(pill => {
+    const i = parseInt(pill.dataset.i, 10);
+    pill.querySelector('.cp-name').addEventListener('input', e => {
+      editorClasses[i].name = e.target.value;
+    });
+    pill.querySelector('.cp-tw').addEventListener('input', e => {
+      editorClasses[i].target_weight = parseFloat(e.target.value) || 0;
+      const newSum = editorClasses.reduce((s, c) => s + (c.target_weight || 0), 0);
+      const newOk  = editorClasses.length === 0 || Math.abs(newSum - 100) < 0.01 || newSum === 0;
+      const sumEl  = section.querySelector('.class-weight-sum');
+      if (sumEl) { sumEl.textContent = `Class weights: ${f.num(newSum, 1)}% / 100%`; sumEl.className = `class-weight-sum ${newOk ? 'ok' : 'bad'}`; }
+    });
+    pill.querySelector('.cp-del').addEventListener('click', () => {
+      syncEditorRowsFromDOM();
+      const cls = editorClasses[i];
+      const posInClass = editorRows.filter(r => r.class_id === cls.id).length;
+      if (posInClass > 0 && !confirm(`Remove class "${cls.name}"? ${posInClass} position(s) will become ungrouped.`)) return;
+      if (_originalClassIds.includes(cls.id)) _deletedClassIds.push(cls.id);
+      editorRows.forEach(r => { if (r.class_id === cls.id) r.class_id = null; });
+      editorClasses.splice(i, 1);
+      renderClassEditor();
+      renderEditor();
+    });
+  });
 }
 
 function renderEditor() {
@@ -1003,7 +1167,11 @@ function renderEditor() {
       <input type="text" class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
       <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
       <input type="number" class="hc" placeholder="Avg $" value="${h.avg_cost}" min="0" step="any">
-      <input type="number" class="ht" placeholder="10" value="${typeof h.target_weight === 'number' ? h.target_weight : 0}" min="0" max="100" step="0.1">
+      <input type="number" class="ht" placeholder="10" value="${typeof h.target_weight === 'number' ? h.target_weight : 0}" min="0" max="100" step="0.1" title="Direct portfolio % (ungrouped) or intra-class % (when assigned to a class)">
+      <select class="hcls">
+        <option value="">— None —</option>
+        ${editorClasses.map(c => `<option value="${c.id}" ${h.class_id === c.id ? 'selected' : ''}>${c.name || 'Unnamed'}</option>`).join('')}
+      </select>
       <button class="rm-btn" data-sym="${h.symbol}">×</button>
     </div>`).join('');
 
@@ -1042,35 +1210,75 @@ async function saveSettings() {
 
   if (!S.currentFolioId) { closeOverlay('ov-settings'); return; }
 
-  const rows  = document.querySelectorAll('#h-editor .h-row');
-  const saves = [];
-  editorRows  = [];
-  let targetSum = 0;
+  // Validate class target weight sum
+  const classSum = editorClasses.reduce((s, c) => s + (c.target_weight || 0), 0);
+  if (editorClasses.length > 0 && classSum > 0 && Math.abs(classSum - 100) > 0.1) {
+    toast(`Class weights sum to ${f.num(classSum, 1)}% — must equal 100%.`, 'error');
+    return;
+  }
 
-  rows.forEach((r, i) => {
-    const sym    = r.querySelector('.hs').value.trim().toUpperCase();
-    const shares = parseFloat(r.querySelector('.hq').value);
-    const cost   = parseFloat(r.querySelector('.hc').value);
-    const target = parseFloat(r.querySelector('.ht').value);
+  // Parse position rows from DOM
+  const domRows = document.querySelectorAll('#h-editor .h-row');
+  const posData = [];
+  editorRows = [];
+  let ungroupedTargetSum = 0;
+  const classIntraSums = {};
+
+  domRows.forEach((r, i) => {
+    const sym     = r.querySelector('.hs').value.trim().toUpperCase();
+    const shares  = parseFloat(r.querySelector('.hq').value);
+    const cost    = parseFloat(r.querySelector('.hc').value);
+    const target  = parseFloat(r.querySelector('.ht').value);
+    const classId = r.querySelector('.hcls')?.value || null;
     if (sym && shares > 0 && cost >= 0) {
       const existing = S.positions.find(p => p.symbol === sym);
       const color    = existing?.color || COLORS[i % COLORS.length];
       const tw       = isNaN(target) ? 0 : target;
-      targetSum += tw;
-      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color, target_weight: tw });
-      saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, color, tw));
+      if (classId) {
+        classIntraSums[classId] = (classIntraSums[classId] || 0) + tw;
+      } else {
+        ungroupedTargetSum += tw;
+      }
+      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color, target_weight: tw, class_id: classId || null });
+      posData.push({ sym, shares, cost, color, tw, classId: classId || null });
     }
   });
 
-  if (targetSum > 0 && Math.abs(targetSum - 100) > 0.1) {
-    toast('Target weights must sum to 100% when set.', 'error');
+  // Validate intra-class weight sums
+  for (const [clsId, sum] of Object.entries(classIntraSums)) {
+    if (sum > 0 && Math.abs(sum - 100) > 0.1) {
+      const cls = editorClasses.find(c => c.id === clsId);
+      toast(`Class "${cls?.name || 'Unnamed'}" weights sum to ${f.num(sum, 1)}% — must equal 100%.`, 'error');
+      return;
+    }
+  }
+
+  // Validate ungrouped position target weights (existing behaviour)
+  if (ungroupedTargetSum > 0 && Math.abs(ungroupedTargetSum - 100) > 0.1) {
+    toast('Ungrouped position target weights must sum to 100% when set.', 'error');
     return;
   }
 
   try {
-    await Promise.all(saves);
-    S.positions = await DB.listPositions(S.currentFolioId);
-    editorRows  = S.positions.map(p => ({ ...p }));
+    // Upsert classes first (positions reference them by class_id)
+    for (let i = 0; i < editorClasses.length; i++) {
+      const c = editorClasses[i];
+      await DB.upsertClass(S.currentFolioId, {
+        id: c.id, name: c.name || 'Unnamed', targetWeight: c.target_weight || 0,
+        color: c.color, sortOrder: i,
+      });
+    }
+    // Delete removed classes (ON DELETE SET NULL keeps positions, unassigns class_id)
+    for (const id of _deletedClassIds) await DB.deleteClass(id);
+
+    // Upsert positions
+    await Promise.all(posData.map(p =>
+      DB.upsertPosition(S.currentFolioId, p.sym, p.shares, p.cost, p.color, p.tw, p.classId)
+    ));
+    S.positions   = await DB.listPositions(S.currentFolioId);
+    S.classes     = await DB.listClasses(S.currentFolioId);
+    editorRows    = S.positions.map(p => ({ ...p }));
+    editorClasses = S.classes.map(c => ({ ...c }));
     closeOverlay('ov-settings');
     toast('Positions saved');
     loadAll();
@@ -1114,10 +1322,16 @@ function closeOverlay(id) {
 
 // ── LOAD ALL ───────────────────────────────────────────────────
 async function loadAll() {
-  if (!S.currentFolioId) { renderDash(); renderHoldings(); return; }
+  if (!S.currentFolioId) { S.classes = []; renderDash(); renderHoldings(); return; }
   try {
     S.positions = await DB.listPositions(S.currentFolioId);
   } catch(e) { return; }
+  try {
+    S.classes = await DB.listClasses(S.currentFolioId);
+  } catch(e) {
+    S.classes = [];
+    console.warn('[FOLIO] Classes unavailable:', e.message);
+  }
 
   renderDash(); renderHoldings();
 
@@ -1222,23 +1436,22 @@ function initEvents() {
 
   $('save-settings')?.addEventListener('click', saveSettings);
   $('add-holding')?.addEventListener('click', () => {
-    const rows = document.querySelectorAll('#h-editor .h-row');
-    editorRows = Array.from(rows).map((r, i) => {
-      const sym    = r.querySelector('.hs').value.trim().toUpperCase();
-      const shares = parseFloat(r.querySelector('.hq').value);
-      const cost   = parseFloat(r.querySelector('.hc').value);
-      const existing = S.positions.find(p => p.symbol === sym);
-      const color    = existing?.color || COLORS[i % COLORS.length];
-      const targetEl = r.querySelector('.ht');
-      const target   = targetEl ? parseFloat(targetEl.value) : NaN;
-      return {
-        symbol: sym, shares: isNaN(shares) ? 0 : shares,
-        avg_cost: isNaN(cost) ? 0 : cost,
-        folio_id: S.currentFolioId, color,
-        target_weight: isNaN(target) ? 0 : target,
-      };
+    syncEditorRowsFromDOM();
+    editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null, target_weight:0, class_id:null });
+    renderEditor();
+  });
+
+  $('add-class')?.addEventListener('click', () => {
+    syncEditorRowsFromDOM();
+    editorClasses.push({
+      id:            crypto.randomUUID(),
+      folio_id:      S.currentFolioId,
+      name:          '',
+      target_weight: 0,
+      color:         COLORS[editorClasses.length % COLORS.length],
+      sort_order:    editorClasses.length,
     });
-    editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null, target_weight:0 });
+    renderClassEditor();
     renderEditor();
   });
 
