@@ -35,6 +35,9 @@ const S = {
   charts:         { port: null, alloc: null, calc: null, stock: null },
 };
 
+// Separate editor state so Settings edits do not mutate live positions
+let editorRows = [];
+
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
   '#5be8f0','#f0905b','#8af05b','#c05bf0','#f05b5b',
@@ -734,9 +737,16 @@ async function confirmCreateFolio() {
 
 // ── SETTINGS ──────────────────────────────────────────────────
 function openSettings() {
-  $('set-avkey').value = S.avKey;
+  const avInput = $('set-avkey');
+  if (avInput) {
+    avInput.value = '';
+    avInput.placeholder = S.avKey
+      ? 'Key already saved — paste a new key to replace it'
+      : 'Paste your Alpha Vantage API key…';
+  }
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
   $('settings-folio-name').textContent = folio ? `— ${folio.name}` : '';
+  editorRows = S.positions.map(p => ({ ...p }));
   renderEditor();
   $('ov-settings').classList.add('open');
 }
@@ -744,7 +754,7 @@ function openSettings() {
 function renderEditor() {
   const ed = $('h-editor');
   if (!ed) return;
-  ed.innerHTML = S.positions.map((h, i) => `
+  ed.innerHTML = editorRows.map((h, i) => `
     <div class="h-row" data-i="${i}">
       <input type="text" class="hs" placeholder="AAPL" value="${h.symbol}" style="text-transform:uppercase">
       <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
@@ -754,12 +764,32 @@ function renderEditor() {
 
   ed.querySelectorAll('.rm-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      const rowEl = btn.closest('.h-row');
+      const idx = rowEl ? parseInt(rowEl.dataset.i, 10) : -1;
       const sym = btn.dataset.sym;
-      if (!sym || !S.currentFolioId) { btn.closest('.h-row').remove(); return; }
+
+      // New unsaved row: just remove from editor state
+      if (!sym) {
+        if (idx >= 0) {
+          editorRows.splice(idx, 1);
+          renderEditor();
+        } else {
+          rowEl?.remove();
+        }
+        return;
+      }
+
+      if (!S.currentFolioId) {
+        rowEl?.remove();
+        return;
+      }
+
       try {
         await DB.deletePosition(S.currentFolioId, sym);
+        editorRows = editorRows.filter(p => p.symbol !== sym);
         S.positions = S.positions.filter(p => p.symbol !== sym);
-        renderEditor(); loadAll();
+        renderEditor();
+        loadAll();
         toast(`Removed ${sym}`);
       } catch(e) { /* already handled */ }
     });
@@ -773,19 +803,24 @@ async function saveSettings() {
 
   const rows  = document.querySelectorAll('#h-editor .h-row');
   const saves = [];
+  editorRows = [];
+
   rows.forEach((r, i) => {
     const sym    = r.querySelector('.hs').value.trim().toUpperCase();
     const shares = parseFloat(r.querySelector('.hq').value);
     const cost   = parseFloat(r.querySelector('.hc').value);
     if (sym && shares > 0 && cost >= 0) {
       const existing = S.positions.find(p => p.symbol === sym);
-      saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, existing?.color || COLORS[i % COLORS.length]));
+      const color    = existing?.color || COLORS[i % COLORS.length];
+      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color });
+      saves.push(DB.upsertPosition(S.currentFolioId, sym, shares, cost, color));
     }
   });
 
   try {
     await Promise.all(saves);
     S.positions = await DB.listPositions(S.currentFolioId);
+    editorRows  = S.positions.map(p => ({ ...p }));
     closeOverlay('ov-settings');
     toast('Positions saved');
     loadAll();
@@ -914,7 +949,18 @@ function initEvents() {
   });
   $('save-settings')?.addEventListener('click', saveSettings);
   $('add-holding')?.addEventListener('click', () => {
-    S.positions.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null });
+    // Capture current editor values into editorRows to avoid losing unsaved input
+    const rows = document.querySelectorAll('#h-editor .h-row');
+    editorRows = Array.from(rows).map((r, i) => {
+      const sym    = r.querySelector('.hs').value.trim().toUpperCase();
+      const shares = parseFloat(r.querySelector('.hq').value);
+      const cost   = parseFloat(r.querySelector('.hc').value);
+      const existing = S.positions.find(p => p.symbol === sym);
+      const color    = existing?.color || COLORS[i % COLORS.length];
+      return { symbol: sym, shares: isNaN(shares) ? 0 : shares, avg_cost: isNaN(cost) ? 0 : cost, folio_id: S.currentFolioId, color };
+    });
+
+    editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null });
     renderEditor();
   });
 
