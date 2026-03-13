@@ -421,8 +421,7 @@ tr.classed td:first-child { padding-left:28px; }
       <div class="nav-actions">
         <span class="upd-time" id="upd-time"></span>
         <button class="btn-icon btn" id="btn-refresh" title="Refresh quotes">↺</button>
-        <button class="btn btn-ghost btn-ccy" id="btn-currency" title="Switch currency">USD</button>
-        <button class="btn-icon btn" id="btn-settings" title="Positions &amp; Settings">⚙</button>
+        <button class="btn-icon btn" id="btn-settings" title="Settings">⚙</button>
         <button class="btn btn-ghost" id="btn-logout" style="padding:8px 14px">Sign Out</button>
       </div>
     </div>
@@ -620,12 +619,23 @@ tr.classed td:first-child { padding-left:28px; }
 
 <!-- Settings -->
 <div class="overlay" id="ov-settings">
-  <div class="modal modal-lg">
+  <div class="modal modal-md">
     <div class="modal-header">
-      <h2>Settings <span id="settings-folio-name" style="color:var(--muted);font-size:13px"></span></h2>
+      <h2>Settings</h2>
       <button class="btn btn-icon" data-close="ov-settings">✕</button>
     </div>
     <div class="modal-body">
+
+      <div class="set-section">
+        <h3>Display Currency</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-ccy" id="set-currency-usd" style="flex:1;justify-content:center">USD</button>
+          <button class="btn btn-ghost btn-ccy" id="set-currency-cad" style="flex:1;justify-content:center">CAD</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">
+          Applies to Portfolio Value and Cost Basis only. Rate refreshed every 24h.
+        </div>
+      </div>
 
       <div class="set-section">
         <h3>Alpha Vantage API Key</h3>
@@ -650,6 +660,33 @@ tr.classed td:first-child { padding-left:28px; }
       </div>
 
       <div class="set-section">
+        <h3>Import / Export</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="btn-export" style="font-size:12px">⬇ Export JSON</button>
+          <button class="btn btn-ghost" id="btn-import" style="font-size:12px">⬆ Import JSON</button>
+          <button class="btn btn-ghost" id="btn-clear-cache" style="font-size:12px">🗑 Clear Quote Cache</button>
+          <input type="file" id="import-file" accept=".json" style="display:none">
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="ov-settings">Cancel</button>
+      <button class="btn btn-accent" id="save-settings">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Positions -->
+<div class="overlay" id="ov-positions">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>Positions <span id="positions-folio-name" style="color:var(--muted);font-size:13px"></span></h2>
+      <button class="btn btn-icon" data-close="ov-positions">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="set-section">
         <h3>Sub-Classes</h3>
         <div id="classes-section"></div>
         <div class="set-row">
@@ -668,20 +705,10 @@ tr.classed td:first-child { padding-left:28px; }
         </div>
       </div>
 
-      <div class="set-section">
-        <h3>Import / Export</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost" id="btn-export" style="font-size:12px">⬇ Export JSON</button>
-          <button class="btn btn-ghost" id="btn-import" style="font-size:12px">⬆ Import JSON</button>
-          <button class="btn btn-ghost" id="btn-clear-cache" style="font-size:12px">🗑 Clear Quote Cache</button>
-          <input type="file" id="import-file" accept=".json" style="display:none">
-        </div>
-      </div>
-
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" data-close="ov-settings">Cancel</button>
-      <button class="btn btn-accent" id="save-settings">Save Changes</button>
+      <button class="btn btn-ghost" data-close="ov-positions">Cancel</button>
+      <button class="btn btn-accent" id="save-positions">Save Changes</button>
     </div>
   </div>
 </div>

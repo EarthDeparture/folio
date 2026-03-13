@@ -1238,6 +1238,11 @@ async function confirmCreateFolio() {
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────
+function updateCurrencyButtons() {
+  $('set-currency-usd')?.classList.toggle('cad', S.currency === 'USD');
+  $('set-currency-cad')?.classList.toggle('cad', S.currency === 'CAD');
+}
+
 function openSettings() {
   const avInput = $('set-avkey');
   if (avInput) {
@@ -1253,15 +1258,20 @@ function openSettings() {
       ? 'Key already saved — paste a new key to replace it'
       : 'Paste your Finnhub API key…';
   }
+  updateCurrencyButtons();
+  $('ov-settings').classList.add('open');
+}
+
+function openPositions() {
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
-  $('settings-folio-name').textContent = folio ? `— ${folio.name}` : '';
+  $('positions-folio-name').textContent = folio ? `— ${folio.name}` : '';
   editorClasses     = S.classes.map(c => ({ ...c }));
   _originalClassIds = S.classes.map(c => c.id);
   _deletedClassIds  = [];
   editorRows = S.positions.map(p => ({ ...p }));
   renderClassEditor();
   renderEditor();
-  $('ov-settings').classList.add('open');
+  $('ov-positions').classList.add('open');
 }
 
 function syncEditorRowsFromDOM() {
@@ -1379,7 +1389,12 @@ async function saveSettings() {
   const fhKeyInput = $('set-fhkey')?.value.trim();
   if (fhKeyInput) { S.fhKey = fhKeyInput; localStorage.setItem('folio_fh_key', fhKeyInput); }
 
-  if (!S.currentFolioId) { closeOverlay('ov-settings'); return; }
+  if (avKeyInput || fhKeyInput) toast('API keys saved');
+  closeOverlay('ov-settings');
+}
+
+async function savePositions() {
+  if (!S.currentFolioId) { closeOverlay('ov-positions'); return; }
 
   // Validate class target weight sum
   const classSum = editorClasses.reduce((s, c) => s + (c.target_weight || 0), 0);
@@ -1450,7 +1465,7 @@ async function saveSettings() {
     S.classes     = await DB.listClasses(S.currentFolioId);
     editorRows    = S.positions.map(p => ({ ...p }));
     editorClasses = S.classes.map(c => ({ ...c }));
-    closeOverlay('ov-settings');
+    closeOverlay('ov-positions');
     toast('Positions saved');
     loadAll();
   } catch(e) { /* already handled */ }
@@ -1596,19 +1611,19 @@ function initEvents() {
     });
   });
 
-  $('btn-currency')?.addEventListener('click', () => {
-    S.currency = S.currency === 'USD' ? 'CAD' : 'USD';
-    localStorage.setItem('folio_currency', S.currency);
-    const btn = $('btn-currency');
-    btn.textContent = S.currency;
-    btn.classList.toggle('cad', S.currency === 'CAD');
-    renderDash();
+  $('set-currency-usd')?.addEventListener('click', () => {
+    S.currency = 'USD'; localStorage.setItem('folio_currency', 'USD');
+    updateCurrencyButtons(); renderDash();
+  });
+  $('set-currency-cad')?.addEventListener('click', () => {
+    S.currency = 'CAD'; localStorage.setItem('folio_currency', 'CAD');
+    updateCurrencyButtons(); renderDash();
   });
 
   $('folio-pill')?.addEventListener('click', openFolioModal);
   $('btn-refresh')?.addEventListener('click', () => { Cache.clearQuotes(); loadAll(); });
   $('btn-settings')?.addEventListener('click', openSettings);
-  $('btn-add-pos')?.addEventListener('click', openSettings);
+  $('btn-add-pos')?.addEventListener('click', openPositions);
   $('dash-create-btn')?.addEventListener('click', openFolioModal);
   $('btn-create-folio')?.addEventListener('click', openCreateFolioModal);
   $('confirm-create-folio')?.addEventListener('click', confirmCreateFolio);
@@ -1617,6 +1632,7 @@ function initEvents() {
   $('new-folio-name')?.addEventListener('keypress', function(e) { if (e.key === 'Enter') confirmCreateFolio(); });
 
   $('save-settings')?.addEventListener('click', saveSettings);
+  $('save-positions')?.addEventListener('click', savePositions);
   $('add-holding')?.addEventListener('click', () => {
     syncEditorRowsFromDOM();
     editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null, target_weight:0, class_id:null });
@@ -1684,8 +1700,6 @@ async function init() {
 
   $('app-shell').style.display = 'block';
   fetchFxRate();
-  const ccyBtn = $('btn-currency');
-  if (ccyBtn) { ccyBtn.textContent = S.currency; ccyBtn.classList.toggle('cad', S.currency === 'CAD'); }
 
   try {
     S.portfolios = await DB.listPortfolios();
