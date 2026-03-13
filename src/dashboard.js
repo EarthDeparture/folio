@@ -51,8 +51,9 @@ let portChartIsGain = true;
 // Suppress duplicate "using Finnhub fallback" toasts within a single load cycle
 let _avRateLimited = false;
 
-// Debounce handle for calculator
+// Debounce handles for calculator and rebalance
 let _calcTimer = null;
+let _rebTimer  = null;
 
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
@@ -963,6 +964,142 @@ function scheduleCalc() {
   _calcTimer = setTimeout(runCalc, 300);
 }
 
+// ── REBALANCE ──────────────────────────────────────────────────
+function computeAllocation(deposit) {
+  const rows     = Port.rows();
+  const newTotal = Port.value() + deposit;
+
+  const withGap = rows.map(h => {
+    const currentVal = h.val ?? 0;
+    const gap = h.targetWeight > 0
+      ? Math.max(0, (h.targetWeight / 100) * newTotal - currentVal)
+      : 0;
+    return { ...h, gap };
+  });
+
+  const totalGap = withGap.reduce((s, h) => s + h.gap, 0);
+  const factor   = totalGap > 0 ? Math.min(1, deposit / totalGap) : 0;
+
+  return {
+    rows: withGap.map(h => ({
+      ...h,
+      allocDollars: h.gap * factor,
+      allocShares:  h.px > 0 ? (h.gap * factor) / h.px : 0,
+    })),
+    totalGap,
+    totalAllocated: withGap.reduce((s, h) => s + h.gap * factor, 0),
+    unallocated: deposit - withGap.reduce((s, h) => s + h.gap * factor, 0),
+  };
+}
+
+function renderRebalance() {
+  const container = $('reb-results');
+  if (!container) return;
+
+  const deposit = parseFloat($('reb-amount')?.value) || 0;
+  const rows = Port.rows();
+
+  if (!rows.length) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">No positions in this portfolio.</div>`;
+    return;
+  }
+
+  const hasTargets = rows.some(h => h.targetWeight > 0);
+  if (!hasTargets) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Set target weights on positions in Settings (⚙) to use this feature.</div>`;
+    return;
+  }
+
+  if (deposit <= 0) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Enter a deposit amount to see suggested buys.</div>`;
+    return;
+  }
+
+  const { rows: alloc, totalAllocated, unallocated } = computeAllocation(deposit);
+
+  const renderRow = (h, isClassed = false) => {
+    const dim        = h.allocDollars < 0.01;
+    const dollarStr  = h.allocDollars >= 0.01 ? f.$(h.allocDollars) : '—';
+    const sharesStr  = h.allocShares  > 0     ? h.allocShares.toFixed(2) : '—';
+    const currentPct = h.weight     != null   ? f.pct(h.weight, 1) : '—';
+    const targetPct  = h.targetWeight > 0     ? f.pct(h.targetWeight, 1) : '—';
+    const cls = [dim ? 'reb-dim' : '', isClassed ? 'classed' : ''].filter(Boolean).join(' ');
+    return `
+      <tr class="${cls}">
+        <td>
+          <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${h.color};margin-right:8px;vertical-align:middle"></span>
+          <span style="font-weight:600">${h.symbol}</span>
+        </td>
+        <td>${currentPct}</td>
+        <td>${targetPct}</td>
+        <td>${dollarStr}</td>
+        <td>${sharesStr}</td>
+      </tr>`;
+  };
+
+  let bodyHTML = '';
+  if (!S.classes.length) {
+    bodyHTML = alloc.map(h => renderRow(h)).join('');
+  } else {
+    const ungrouped = alloc.filter(h => !h.cls);
+    if (ungrouped.length) {
+      bodyHTML += `<tr class="class-header-row"><td colspan="5"><span class="class-name" style="color:var(--muted)">Ungrouped</span></td></tr>`;
+      bodyHTML += ungrouped.map(h => renderRow(h, false)).join('');
+    }
+    for (const cls of S.classes) {
+      const clsRows  = alloc.filter(h => h.cls?.id === cls.id);
+      if (!clsRows.length) continue;
+      const clsAlloc = clsRows.reduce((s, h) => s + h.allocDollars, 0);
+      bodyHTML += `
+        <tr class="class-header-row">
+          <td colspan="5">
+            <span class="class-badge" style="background:${cls.color || '#5a6680'}"></span>
+            <span class="class-name">${cls.name}</span>
+            ${clsAlloc >= 0.01 ? `<span class="mono" style="margin-left:16px;font-size:12px">${f.$(clsAlloc)}</span>` : ''}
+          </td>
+        </tr>`;
+      bodyHTML += clsRows.map(h => renderRow(h, true)).join('');
+    }
+  }
+
+  let footerHTML = '';
+  if (unallocated > 0.01) {
+    footerHTML += `
+      <tr>
+        <td style="color:var(--muted)">Unallocated</td>
+        <td colspan="2" style="color:var(--muted);font-size:11px;font-family:var(--sans)">All targets met</td>
+        <td class="mono" style="color:var(--muted)">${f.$(unallocated)}</td>
+        <td>—</td>
+      </tr>`;
+  }
+  footerHTML += `
+    <tr class="reb-total">
+      <td style="font-weight:600;font-family:var(--sans)">Total</td>
+      <td colspan="2"></td>
+      <td class="mono" style="color:var(--accent)">${f.$(totalAllocated)}</td>
+      <td></td>
+    </tr>`;
+
+  container.innerHTML = `
+    <table class="reb-tbl">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Current %</th>
+          <th>Target %</th>
+          <th>Buy ($)</th>
+          <th>~ Shares</th>
+        </tr>
+      </thead>
+      <tbody>${bodyHTML}${footerHTML}</tbody>
+    </table>`;
+}
+
+function scheduleRebalance() {
+  clearTimeout(_rebTimer);
+  _rebTimer = setTimeout(renderRebalance, 300);
+}
+
 // ── FOLIO MANAGEMENT ───────────────────────────────────────────
 async function openFolioModal() {
   $('ov-folio').classList.add('open');
@@ -1380,6 +1517,7 @@ async function loadAll() {
     if (total > 0) $('c-start').value = Math.round(total);
     runCalc();
     loadPortChart(S.period).catch(e => console.warn('Port chart:', e.message));
+    if (document.querySelector('#tab-rebalance.active')) renderRebalance();
   } catch(e) {
     if (tbody) tbody.innerHTML = `
       <tr><td colspan="8">
@@ -1403,6 +1541,7 @@ function initEvents() {
       btn.classList.add('active');
       $('tab-' + btn.dataset.tab)?.classList.add('active');
       if (btn.dataset.tab === 'calculator') runCalc();
+      if (btn.dataset.tab === 'rebalance')  renderRebalance();
     });
   });
 
@@ -1465,6 +1604,8 @@ function initEvents() {
   $('btn-import')?.addEventListener('click', () => $('import-file').click());
   $('import-file')?.addEventListener('change', e => { if (e.target.files[0]) importJSON(e.target.files[0]); });
   $('btn-clear-cache')?.addEventListener('click', Cache.clearQuotes);
+
+  $('reb-amount')?.addEventListener('input', scheduleRebalance);
 
   $('btn-calc')?.addEventListener('click', runCalc);
   ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id =>

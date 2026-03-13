@@ -217,6 +217,24 @@ input, select, button { font-family:var(--sans); }
 }
 .calc-chart-wrap { position:relative; height:320px; }
 
+/* ── REBALANCE ── */
+.rebalance-tab { padding:28px 0 48px; }
+.reb-grid { display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start; }
+.reb-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.reb-tbl th { text-align:right; padding:8px 12px; font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+  border-bottom:1px solid var(--border); }
+.reb-tbl th:first-child { text-align:left; }
+.reb-tbl td { padding:11px 12px; border-bottom:1px solid var(--border);
+  vertical-align:middle; text-align:right; font-family:var(--mono); }
+.reb-tbl td:first-child { text-align:left; font-family:var(--sans); }
+.reb-tbl tr:last-child td { border-bottom:none; }
+.reb-tbl tr.reb-dim td { opacity:0.35; }
+.reb-tbl tr.reb-total td { border-top:1px solid var(--ba); padding-top:12px; }
+.reb-tbl tr.class-header-row td { background:rgba(255,255,255,0.03);
+  border-top:1px solid var(--border); padding:8px 12px; }
+@media (max-width:960px) { .reb-grid { grid-template-columns:1fr; } }
+
 /* ── OVERLAYS ── */
 .overlay {
   display:none; position:fixed; inset:0; z-index:100;
@@ -395,6 +413,7 @@ tr.classed td:first-child { padding-left:28px; }
       <div class="nav-tabs">
         <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
         <button class="nav-btn" data-tab="calculator">Calculator</button>
+        <button class="nav-btn" data-tab="rebalance">Rebalance</button>
       </div>
 
       <div class="nav-actions">
@@ -565,6 +584,32 @@ tr.classed td:first-child { padding-left:28px; }
       </div>
     </div>
   </div><!-- /tab-calculator -->
+
+  <!-- REBALANCE TAB -->
+  <div class="tab" id="tab-rebalance">
+    <div class="wrap rebalance-tab">
+      <div class="reb-grid">
+        <!-- Left: input card -->
+        <div class="calc-card">
+          <h3>Deploy New Cash</h3>
+          <div class="fg">
+            <label>Deposit Amount ($)</label>
+            <input type="number" id="reb-amount" value="1000" min="0" step="100">
+          </div>
+          <p style="font-size:11px;color:var(--muted);line-height:1.6">
+            Suggests buys to move actual weightings toward targets.
+            Positions without a target weight are excluded from allocation.
+          </p>
+        </div>
+        <!-- Right: results card -->
+        <div class="calc-card" id="reb-results">
+          <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">
+            Enter a deposit amount to see suggested buys.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /tab-rebalance -->
 
 </div><!-- /app-shell -->
 
