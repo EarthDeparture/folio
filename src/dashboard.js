@@ -12,18 +12,21 @@ Chart.register(...registerables);
 // ── CONFIG ─────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const AV_BASE      = 'https://www.alphavantage.co/query';
+const FH_BASE      = 'https://finnhub.io/api/v1';
 
 const sbKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const avKey = import.meta.env.VITE_AV_KEY || '';
+const fhKey = import.meta.env.VITE_FH_KEY || '';
 
-const CACHE_Q = 24 * 60 * 60 * 1000;  // 24 h   — quote TTL (stale threshold)
-const CACHE_H = 24 * 60 * 60 * 1000;  // 24 h   — history TTL
+const CACHE_Q = 24 * 60 * 60 * 1000;  // 24 h — quote TTL
+const CACHE_H = 24 * 60 * 60 * 1000;  // 24 h — history TTL
 
 // ── STATE ──────────────────────────────────────────────────────
 const S = {
   db:             null,
-  user:           null,         // Supabase user object
+  user:           null,
   avKey:          '',
+  fhKey:          '',
   portfolios:     [],
   currentFolioId: localStorage.getItem('folio_current_id') || null,
   positions:      [],
@@ -37,6 +40,15 @@ const S = {
 
 // Separate editor state so Settings edits do not mutate live positions
 let editorRows = [];
+
+// Track gain state for port chart gradient closure
+let portChartIsGain = true;
+
+// Suppress duplicate "using Finnhub fallback" toasts within a single load cycle
+let _avRateLimited = false;
+
+// Debounce handle for calculator
+let _calcTimer = null;
 
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
@@ -85,6 +97,13 @@ function isPermissionDenied(error) {
     msg.includes('row-level security') ||
     msg.includes('new row violates')
   );
+}
+
+function isRateLimit(error) {
+  if (!error) return false;
+  if (error.isRateLimit) return true;
+  const msg = error.message?.toLowerCase() || '';
+  return msg.includes('rate limit') || msg.includes('call frequency') || msg.includes('thank you');
 }
 
 function handleDbError(error, context = '') {
@@ -138,33 +157,23 @@ const DB = {
       .from('portfolios')
       .select('*')
       .order('created_at', { ascending: true });
-
     if (error) { handleDbError(error, 'listPortfolios'); throw error; }
     return data || [];
   },
 
   async createPortfolio(name) {
-    // Defensive approach: pass owner from client AND rely on trigger as safety net
-    // Client-side: explicit owner ensures NOT NULL constraint is satisfied
-    // Trigger: backup in case client auth fails or trigger has issues
     if (!S.user?.id) throw new Error('Not authenticated - please sign in again.');
     const { data, error } = await S.db
       .from('portfolios')
       .insert({ name: name.trim(), owner: S.user.id })
       .select()
       .single();
-
     if (error) { handleDbError(error, 'createPortfolio'); throw error; }
     return data;
   },
 
   async deletePortfolio(id) {
-    // RLS enforces ownership — will block if not the owner
-    const { error } = await S.db
-      .from('portfolios')
-      .delete()
-      .eq('id', id);
-
+    const { error } = await S.db.from('portfolios').delete().eq('id', id);
     if (error) { handleDbError(error, 'deletePortfolio'); throw error; }
   },
 
@@ -174,7 +183,6 @@ const DB = {
       .select('*')
       .eq('folio_id', folioId)
       .order('symbol', { ascending: true });
-
     if (error) { handleDbError(error, 'listPositions'); throw error; }
     return data || [];
   },
@@ -196,7 +204,6 @@ const DB = {
       )
       .select()
       .single();
-
     if (error) { handleDbError(error, `upsertPosition ${symbol}`); throw error; }
     return data;
   },
@@ -207,12 +214,9 @@ const DB = {
       .delete()
       .eq('folio_id', folioId)
       .eq('symbol', symbol);
-
     if (error) { handleDbError(error, `deletePosition ${symbol}`); throw error; }
   },
 
-  // Quotes cache write — uses service role on the server in production.
-  // Client-side write is a best-effort; quote reads are always from AV.
   async getQuote(symbol, maxAgeMs) {
     try {
       const { data, error } = await S.db
@@ -220,14 +224,11 @@ const DB = {
         .select('*')
         .eq('symbol', symbol.toUpperCase())
         .maybeSingle();
-
       if (error || !data) return null;
-
       if (maxAgeMs && data.cached_at) {
         const age = Date.now() - new Date(data.cached_at).getTime();
         if (age > maxAgeMs) return null;
       }
-
       return data;
     } catch {
       return null;
@@ -265,7 +266,13 @@ const API = {
       const data = JSON.parse(await r.text());
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       if (data['Error Message']) throw new Error(data['Error Message']);
-      if (data['Note']) throw new Error('API rate limit — try again in 1 minute');
+      // Both 'Note' (rate limit) and 'Information' (free plan exhausted) signal rate limiting
+      if (data['Note'] || data['Information']) {
+        throw Object.assign(
+          new Error('Alpha Vantage rate limit reached — try again later'),
+          { isRateLimit: true }
+        );
+      }
       return data;
     } catch(e) {
       clearTimeout(timer);
@@ -277,48 +284,65 @@ const API = {
     const cached = Cache.get('q1_' + symbol);
     if (cached) return cached;
 
-    // Try shared DB cache (cross-user) before hitting Alpha Vantage
+    // Try shared DB cache (cross-user) before hitting any API
     const dbQ = await DB.getQuote(symbol, CACHE_Q);
     if (dbQ) {
       const q = {
-        symbol:           dbQ.symbol,
-        name:             dbQ.name || dbQ.symbol,
-        price:            dbQ.price ?? null,
-        change:           dbQ.change ?? 0,
-        changesPercentage:dbQ.changes_percentage ?? 0,
-        marketCap:        dbQ.market_cap || null,
-        pe:               dbQ.pe || null,
-        yearHigh:         dbQ.year_high ?? null,
-        yearLow:          dbQ.year_low ?? null,
-        dividendYield:    dbQ.dividend_yield ?? 0,
+        symbol:            dbQ.symbol,
+        name:              dbQ.name || dbQ.symbol,
+        price:             dbQ.price ?? null,
+        change:            dbQ.change ?? 0,
+        changesPercentage: dbQ.changes_percentage ?? 0,
+        marketCap:         dbQ.market_cap || null,
+        pe:                dbQ.pe || null,
+        yearHigh:          dbQ.year_high ?? null,
+        yearLow:           dbQ.year_low ?? null,
+        dividendYield:     dbQ.dividend_yield ?? 0,
       };
       Cache.set('q1_' + symbol, q, CACHE_Q);
       return q;
     }
 
-    const d = await this._fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}`);
-    const raw = d?.['Global Quote'];
-    if (!raw?.['01. symbol']) return null;
+    // Try Alpha Vantage; on rate limit automatically fall back to Finnhub
+    let q = null;
+    try {
+      const d = await this._fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}`);
+      const raw = d?.['Global Quote'];
+      if (raw?.['01. symbol']) {
+        q = {
+          symbol:            raw['01. symbol'],
+          name:              symbol,
+          price:             parseFloat(raw['05. price']),
+          change:            parseFloat(raw['09. change']) || 0,
+          changesPercentage: parseFloat(raw['10. change percent']) || 0,
+          marketCap:         raw['06. market cap'] || null,
+          pe:                raw['07. pe ratio'] || null,
+          yearHigh:          parseFloat(raw['03. high']) || null,
+          yearLow:           parseFloat(raw['04. low']) || null,
+          dividendYield:     parseFloat(raw['08. dividend yield']) || 0,
+        };
+      }
+    } catch(e) {
+      if (isRateLimit(e) && S.fhKey) {
+        if (!_avRateLimited) {
+          toast('Alpha Vantage limit reached — switching to Finnhub', 'info');
+          _avRateLimited = true;
+        }
+        q = await FINNHUB.quote(symbol);
+      } else {
+        throw e;
+      }
+    }
 
-    const q = {
-      symbol:           raw['01. symbol'],
-      name:             symbol,
-      price:            parseFloat(raw['05. price']),
-      change:           parseFloat(raw['09. change']) || 0,
-      changesPercentage:parseFloat(raw['10. change percent']) || 0,
-      marketCap:        raw['06. market cap'] || null,
-      pe:               raw['07. pe ratio'] || null,
-      yearHigh:         parseFloat(raw['03. high']) || null,
-      yearLow:          parseFloat(raw['04. low']) || null,
-      dividendYield:    parseFloat(raw['08. dividend yield']) || 0,
-    };
-
-    Cache.set('q1_' + symbol, q, CACHE_Q);
-    DB.upsertQuote(q);
+    if (q) {
+      Cache.set('q1_' + symbol, q, CACHE_Q);
+      DB.upsertQuote(q);
+    }
     return q;
   },
 
   async quotes(symbols) {
+    _avRateLimited = false; // reset toast flag at start of each batch load
     const results = [];
     for (let i = 0; i < symbols.length; i += 5) {
       const batch = await Promise.all(
@@ -332,21 +356,34 @@ const API = {
     return results;
   },
 
-  async historical(symbol, from) {
-    const cKey = `h_${symbol}_${from}`;
+  // Returns full 1Y+ history sorted newest-first.
+  // Cache key is per-symbol only — switching periods reuses this cache
+  // instead of triggering new API calls.
+  async historical(symbol) {
+    const cKey = `h_${symbol}`;
     const cached = Cache.get(cKey);
     if (cached) return cached;
 
-    const d = await this._fetch(`${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full`);
-    const ts = d?.['Time Series (Daily)'];
-    if (!ts) return [];
+    let prices = null;
+    try {
+      const d = await this._fetch(`${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full`);
+      const ts = d?.['Time Series (Daily)'];
+      if (ts) {
+        prices = Object.keys(ts)
+          .sort()
+          .reverse()
+          .map(date => ({ date, close: parseFloat(ts[date]['4. close']) }));
+      }
+    } catch(e) {
+      if (isRateLimit(e) && S.fhKey) {
+        prices = await FINNHUB.historical(symbol);
+      } else {
+        throw e;
+      }
+    }
 
-    const prices = Object.keys(ts).sort().reverse()
-      .filter(date => date >= from)
-      .map(date => ({ date, close: parseFloat(ts[date]['4. close']) }));
-
-    if (prices.length) Cache.set(cKey, prices, CACHE_H);
-    return prices;
+    if (prices?.length) Cache.set(cKey, prices, CACHE_H);
+    return prices || [];
   },
 
   async dividends(symbol) {
@@ -354,18 +391,87 @@ const API = {
     const cached = Cache.get(cKey);
     if (cached) return cached;
 
-    const d = await this._fetch(`${AV_BASE}?function=DIVIDENDS&symbol=${symbol}`);
-    const data = d?.data;
-    if (!Array.isArray(data)) return [];
+    let divs = null;
+    try {
+      const d = await this._fetch(`${AV_BASE}?function=DIVIDENDS&symbol=${symbol}`);
+      const data = d?.data;
+      if (Array.isArray(data)) {
+        divs = data.map(div => ({
+          date:     div.ex_dividend_date,
+          label:    div.dividend_type || 'Dividend',
+          dividend: parseFloat(div.amount),
+        }));
+      }
+    } catch(e) {
+      if (isRateLimit(e) && S.fhKey) {
+        divs = await FINNHUB.dividends(symbol);
+      } else {
+        throw e;
+      }
+    }
 
-    const divs = data.map(div => ({
-      date:     div.ex_dividend_date,
-      label:    div.dividend_type || 'Dividend',
-      dividend: parseFloat(div.amount),
-    }));
-    if (divs.length) Cache.set(cKey, divs, CACHE_H);
-    return divs;
+    if (divs?.length) Cache.set(cKey, divs, CACHE_H);
+    return divs || [];
   },
+};
+
+// ── FINNHUB PROVIDER (Fallback) ────────────────────────────────
+// Used automatically when Alpha Vantage rate limits are hit.
+// Free tier: 60 req/min — no credit card required.
+// Dividend history not available on free plan (returns empty array).
+const FINNHUB = {
+  async _fetch(path) {
+    const key = S.fhKey.trim();
+    if (!key) throw new Error('No Finnhub API key configured');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const r = await fetch(`${FH_BASE}${path}&token=${encodeURIComponent(key)}`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (r.status === 429) throw Object.assign(new Error('Finnhub rate limit reached'), { isRateLimit: true });
+      if (!r.ok) throw new Error(`Finnhub HTTP ${r.status}`);
+      return await r.json();
+    } catch(e) {
+      clearTimeout(timer);
+      throw e.name === 'AbortError' ? new Error('Request timed out') : e;
+    }
+  },
+
+  async quote(symbol) {
+    const [q, p] = await Promise.all([
+      this._fetch(`/quote?symbol=${encodeURIComponent(symbol)}`),
+      this._fetch(`/stock/profile2?symbol=${encodeURIComponent(symbol)}`),
+    ]);
+    // c === 0 means no data (unknown symbol or market closed with no price)
+    if (!q || q.c == null || q.c === 0) return null;
+    return {
+      symbol,
+      name:              p?.name || symbol,
+      price:             q.c,
+      change:            q.d  ?? 0,
+      changesPercentage: q.dp ?? 0,
+      marketCap:         p?.marketCapitalization ? p.marketCapitalization * 1e6 : null,
+      pe:                null,   // requires Finnhub paid metric endpoint
+      yearHigh:          null,   // requires Finnhub paid metric endpoint
+      yearLow:           null,
+      dividendYield:     0,
+      _provider:         'finnhub',
+    };
+  },
+
+  async historical(symbol) {
+    const to   = Math.floor(Date.now() / 1000);
+    const from = to - 366 * 86400; // 366 days of daily candles
+    const d = await this._fetch(
+      `/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${from}&to=${to}`
+    );
+    if (!d || d.s !== 'ok' || !Array.isArray(d.c)) return [];
+    return d.t
+      .map((ts, i) => ({ date: new Date(ts * 1000).toISOString().split('T')[0], close: d.c[i] }))
+      .sort((a, b) => b.date.localeCompare(a.date)); // newest first, matches AV shape
+  },
+
+  async dividends() { return []; }, // Not available on Finnhub free tier
 };
 
 // ── PORTFOLIO MATH ─────────────────────────────────────────────
@@ -435,13 +541,25 @@ function lineGrad(ctx, isGain) {
   return g;
 }
 
+// Reuse chart instance with .update('none') to avoid destroy/recreate overhead.
+// portChartIsGain is a module-level variable so the backgroundColor closure
+// reflects the current gain state on each update.
 function buildPortChart(labels, vals) {
-  if (S.charts.port) S.charts.port.destroy();
   const isGain = !vals.length || vals[vals.length - 1] >= vals[0];
-  const col = isGain ? '#14f0a8' : '#f0486e';
+  const col    = isGain ? '#14f0a8' : '#f0486e';
+  portChartIsGain = isGain;
+
+  if (S.charts.port) {
+    S.charts.port.data.labels                  = labels;
+    S.charts.port.data.datasets[0].data        = vals;
+    S.charts.port.data.datasets[0].borderColor = col;
+    S.charts.port.update('none');
+    return;
+  }
+
   S.charts.port = new Chart($('c-portfolio'), {
     type: 'line',
-    data: { labels, datasets: [{ data: vals, borderColor: col, borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: ctx => lineGrad(ctx, isGain), tension: .35 }] },
+    data: { labels, datasets: [{ data: vals, borderColor: col, borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: ctx => lineGrad(ctx, portChartIsGain), tension: .35 }] },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode:'index', intersect:false },
@@ -455,8 +573,16 @@ function buildPortChart(labels, vals) {
 }
 
 function buildAllocChart(rows) {
-  if (S.charts.alloc) S.charts.alloc.destroy();
   const data = [...rows].sort((a, b) => (b.val || 0) - (a.val || 0));
+
+  if (S.charts.alloc) {
+    S.charts.alloc.data.labels                       = data.map(d => d.symbol);
+    S.charts.alloc.data.datasets[0].data             = data.map(d => d.val || 0);
+    S.charts.alloc.data.datasets[0].backgroundColor  = data.map(d => d.color);
+    S.charts.alloc.update('none');
+    return;
+  }
+
   S.charts.alloc = new Chart($('c-alloc'), {
     type: 'doughnut',
     data: { labels: data.map(d => d.symbol), datasets: [{ data: data.map(d => d.val || 0), backgroundColor: data.map(d => d.color), borderColor:'#060a14', borderWidth:2, hoverOffset:4 }] },
@@ -474,7 +600,15 @@ function buildAllocChart(rows) {
 }
 
 function buildCalcChart(labels, contrib, portfolio, divs) {
-  if (S.charts.calc) S.charts.calc.destroy();
+  if (S.charts.calc) {
+    S.charts.calc.data.labels             = labels;
+    S.charts.calc.data.datasets[0].data   = portfolio;
+    S.charts.calc.data.datasets[1].data   = contrib;
+    S.charts.calc.data.datasets[2].data   = divs;
+    S.charts.calc.update('none');
+    return;
+  }
+
   S.charts.calc = new Chart($('c-calc'), {
     type: 'line',
     data: { labels, datasets: [
@@ -504,8 +638,8 @@ function updateFolioPill() {
 }
 
 function renderDash() {
-  $('dash-empty').style.display  = !S.currentFolioId ? 'flex'  : 'none';
-  $('dash-content').style.display = S.currentFolioId ? 'block' : 'none';
+  $('dash-empty').style.display   = !S.currentFolioId ? 'flex'  : 'none';
+  $('dash-content').style.display =  S.currentFolioId ? 'block' : 'none';
   if (!S.currentFolioId) return;
 
   const val  = Port.value();
@@ -585,14 +719,22 @@ async function loadPortChart(period) {
   if (!S.positions.length) return;
   const days = { '1M':30, '3M':90, '6M':182, '1Y':365 }[period] || 30;
   const from = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+
   const allHist = {};
   for (const sym of S.positions.map(h => h.symbol)) {
-    try { allHist[sym] = await API.historical(sym, from); }
-    catch(e) { allHist[sym] = []; }
+    try {
+      // API.historical caches by symbol — period switches reuse the same data
+      const full = await API.historical(sym);
+      allHist[sym] = full.filter(d => d.date >= from);
+    } catch(e) {
+      allHist[sym] = [];
+    }
   }
+
   const sample = Object.values(allHist).find(a => a.length) || [];
   const dates  = sample.map(d => d.date);
   if (dates.length < 2) { buildPortChart(['Start','Now'], [Port.cost(), Port.value()]); return; }
+
   const vals   = dates.map(date => S.positions.reduce((sum, h) => {
     const e = (allHist[h.symbol] || []).find(d => d.date === date);
     return sum + (e ? e.close * h.shares : 0);
@@ -643,10 +785,9 @@ async function openStock(symbol) {
     <div class="sec-title">Dividend History</div>
     <div id="stk-divs"><div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div></div>`;
 
-  // Load chart
+  // Load chart — reuses cached history if available, no extra API call
   try {
-    const from = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
-    const hist = await API.historical(symbol, from);
+    const hist = await API.historical(symbol);
     $('stk-loading')?.remove();
     if (hist.length) {
       const sliced = hist.slice(0, 252).reverse();
@@ -711,6 +852,12 @@ function runCalc() {
   buildCalcChart(labels, contribVals, portVals, divVals);
 }
 
+// Debounced version used for input events — avoids running calc on every keystroke
+function scheduleCalc() {
+  clearTimeout(_calcTimer);
+  _calcTimer = setTimeout(runCalc, 300);
+}
+
 // ── FOLIO MANAGEMENT ───────────────────────────────────────────
 async function openFolioModal() {
   $('ov-folio').classList.add('open');
@@ -732,28 +879,39 @@ async function renderFolioList() {
           <div class="fi-name">${p.name}</div>
           <div class="fi-meta">Created ${new Date(p.created_at).toLocaleDateString()}</div>
         </div>
-        <div class="folio-actions" onclick="event.stopPropagation()">
+        <div class="folio-actions">
           ${p.id !== S.currentFolioId
-            ? `<button class="btn btn-sm" onclick="window._selectFolio('${p.id}')">Select</button>`
+            ? `<button class="btn btn-sm folio-select" data-id="${p.id}">Select</button>`
             : '<span style="font-size:11px;color:var(--accent);font-weight:600">Active</span>'}
-          <button class="btn btn-sm btn-danger" onclick="window._deleteFolio('${p.id}','${p.name}')">Delete</button>
+          <button class="btn btn-sm btn-danger folio-delete" data-id="${p.id}" data-name="${p.name.replace(/"/g, '&quot;')}">Delete</button>
         </div>
       </div>`).join('');
+
+    // Event delegation — no global window._ functions needed
+    list.querySelectorAll('.folio-actions').forEach(el =>
+      el.addEventListener('click', e => e.stopPropagation())
+    );
+    list.querySelectorAll('.folio-select').forEach(btn =>
+      btn.addEventListener('click', () => selectFolio(btn.dataset.id))
+    );
+    list.querySelectorAll('.folio-delete').forEach(btn =>
+      btn.addEventListener('click', () => deleteFolio(btn.dataset.id, btn.dataset.name))
+    );
   } catch(e) {
     list.innerHTML = `<p style="color:var(--loss);font-size:13px;padding:16px">Error: ${e.message}</p>`;
   }
 }
 
-window._selectFolio = (id) => {
+function selectFolio(id) {
   S.currentFolioId = id;
   localStorage.setItem('folio_current_id', id);
   closeOverlay('ov-folio');
   updateFolioPill();
   loadAll();
   toast(`Switched to: ${S.portfolios.find(p => p.id === id)?.name || id}`);
-};
+}
 
-window._deleteFolio = async (id, name) => {
+async function deleteFolio(id, name) {
   if (!confirm(`Delete portfolio "${name}" and all its positions? This cannot be undone.`)) return;
   try {
     await DB.deletePortfolio(id);
@@ -765,7 +923,7 @@ window._deleteFolio = async (id, name) => {
     toast('Portfolio deleted');
     await renderFolioList();
   } catch(e) { /* already handled in DB layer */ }
-};
+}
 
 // ── CREATE PORTFOLIO MODAL ──────────────────────────────────────
 function openCreateFolioModal() {
@@ -773,7 +931,6 @@ function openCreateFolioModal() {
   nameInput.value = '';
   nameInput.classList.remove('error');
   $('ov-create-folio').classList.add('open');
-  // Focus after the overlay transition completes
   setTimeout(() => nameInput.focus(), 50);
 }
 
@@ -824,6 +981,13 @@ function openSettings() {
       ? 'Key already saved — paste a new key to replace it'
       : 'Paste your Alpha Vantage API key…';
   }
+  const fhInput = $('set-fhkey');
+  if (fhInput) {
+    fhInput.value = '';
+    fhInput.placeholder = S.fhKey
+      ? 'Key already saved — paste a new key to replace it'
+      : 'Paste your Finnhub API key…';
+  }
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
   $('settings-folio-name').textContent = folio ? `— ${folio.name}` : '';
   editorRows = S.positions.map(p => ({ ...p }));
@@ -849,21 +1013,13 @@ function renderEditor() {
       const idx = rowEl ? parseInt(rowEl.dataset.i, 10) : -1;
       const sym = btn.dataset.sym;
 
-      // New unsaved row: just remove from editor state
       if (!sym) {
-        if (idx >= 0) {
-          editorRows.splice(idx, 1);
-          renderEditor();
-        } else {
-          rowEl?.remove();
-        }
+        if (idx >= 0) { editorRows.splice(idx, 1); renderEditor(); }
+        else rowEl?.remove();
         return;
       }
 
-      if (!S.currentFolioId) {
-        rowEl?.remove();
-        return;
-      }
+      if (!S.currentFolioId) { rowEl?.remove(); return; }
 
       try {
         await DB.deletePosition(S.currentFolioId, sym);
@@ -878,14 +1034,17 @@ function renderEditor() {
 }
 
 async function saveSettings() {
-  const key = $('set-avkey').value.trim();
-  if (key) { S.avKey = key; localStorage.setItem('folio_av_key', key); }
+  const avKeyInput = $('set-avkey')?.value.trim();
+  if (avKeyInput) { S.avKey = avKeyInput; localStorage.setItem('folio_av_key', avKeyInput); }
+
+  const fhKeyInput = $('set-fhkey')?.value.trim();
+  if (fhKeyInput) { S.fhKey = fhKeyInput; localStorage.setItem('folio_fh_key', fhKeyInput); }
+
   if (!S.currentFolioId) { closeOverlay('ov-settings'); return; }
 
   const rows  = document.querySelectorAll('#h-editor .h-row');
   const saves = [];
-  editorRows = [];
-
+  editorRows  = [];
   let targetSum = 0;
 
   rows.forEach((r, i) => {
@@ -903,7 +1062,6 @@ async function saveSettings() {
     }
   });
 
-  // If any targets are set, enforce that they sum to ~100%
   if (targetSum > 0 && Math.abs(targetSum - 100) > 0.1) {
     toast('Target weights must sum to 100% when set.', 'error');
     return;
@@ -976,29 +1134,26 @@ async function loadAll() {
       .in('symbol', syms);
 
     if (rows && rows.length) {
-      const now = Date.now();
       rows.forEach(r => {
-        const q = {
-          symbol:           r.symbol,
-          name:             r.name || r.symbol,
-          price:            r.price ?? null,
-          change:           r.change ?? 0,
-          changesPercentage:r.changes_percentage ?? 0,
-          marketCap:        r.market_cap || null,
-          pe:               r.pe || null,
-          yearHigh:         r.year_high ?? null,
-          yearLow:          r.year_low ?? null,
-          dividendYield:    r.dividend_yield ?? 0,
+        S.quotes[r.symbol] = {
+          symbol:            r.symbol,
+          name:              r.name || r.symbol,
+          price:             r.price ?? null,
+          change:            r.change ?? 0,
+          changesPercentage: r.changes_percentage ?? 0,
+          marketCap:         r.market_cap || null,
+          pe:                r.pe || null,
+          yearHigh:          r.year_high ?? null,
+          yearLow:           r.year_low ?? null,
+          dividendYield:     r.dividend_yield ?? 0,
         };
-        S.quotes[q.symbol] = q;
-        Cache.set('q1_' + q.symbol, q, CACHE_Q);
+        Cache.set('q1_' + r.symbol, S.quotes[r.symbol], CACHE_Q);
       });
-
       renderDash();
       renderHoldings();
     }
   } catch(e) {
-    // Non-fatal: we can still fall back to API path below
+    // Non-fatal: fall through to API path
   }
 
   if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
@@ -1062,20 +1217,11 @@ function initEvents() {
   $('btn-create-folio')?.addEventListener('click', openCreateFolioModal);
   $('confirm-create-folio')?.addEventListener('click', confirmCreateFolio);
 
-  // Clear error when user types in the name input
-  $('new-folio-name')?.addEventListener('input', function() {
-    this.classList.remove('error');
-  });
+  $('new-folio-name')?.addEventListener('input', function() { this.classList.remove('error'); });
+  $('new-folio-name')?.addEventListener('keypress', function(e) { if (e.key === 'Enter') confirmCreateFolio(); });
 
-  // Submit on Enter key
-  $('new-folio-name')?.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-      confirmCreateFolio();
-    }
-  });
   $('save-settings')?.addEventListener('click', saveSettings);
   $('add-holding')?.addEventListener('click', () => {
-    // Capture current editor values into editorRows to avoid losing unsaved input
     const rows = document.querySelectorAll('#h-editor .h-row');
     editorRows = Array.from(rows).map((r, i) => {
       const sym    = r.querySelector('.hs').value.trim().toUpperCase();
@@ -1086,20 +1232,16 @@ function initEvents() {
       const targetEl = r.querySelector('.ht');
       const target   = targetEl ? parseFloat(targetEl.value) : NaN;
       return {
-        symbol: sym,
-        shares: isNaN(shares) ? 0 : shares,
+        symbol: sym, shares: isNaN(shares) ? 0 : shares,
         avg_cost: isNaN(cost) ? 0 : cost,
-        folio_id: S.currentFolioId,
-        color,
+        folio_id: S.currentFolioId, color,
         target_weight: isNaN(target) ? 0 : target,
       };
     });
-
     editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null, target_weight:0 });
     renderEditor();
   });
 
-  // Sign out
   $('btn-logout')?.addEventListener('click', async () => {
     await S.db.auth.signOut();
     localStorage.removeItem('folio_current_id');
@@ -1113,7 +1255,7 @@ function initEvents() {
 
   $('btn-calc')?.addEventListener('click', runCalc);
   ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id =>
-    $(id)?.addEventListener('input', runCalc)
+    $(id)?.addEventListener('input', scheduleCalc)
   );
   $('drip-toggle')?.addEventListener('click', e => {
     S.drip = !S.drip;
@@ -1134,19 +1276,17 @@ async function init() {
   initDB();
   initEvents();
 
-  // Validate session
   const { data: { session } } = await S.db.auth.getSession();
   if (!session) { window.location.href = '/auth.html'; return; }
   S.user = session.user;
 
-  // Load AV key
   S.avKey = avKey || localStorage.getItem('folio_av_key') || '';
+  S.fhKey = fhKey || localStorage.getItem('folio_fh_key') || '';
   if (avKey) localStorage.setItem('folio_av_key', avKey);
+  if (fhKey) localStorage.setItem('folio_fh_key', fhKey);
 
-  // Show app shell
   $('app-shell').style.display = 'block';
 
-  // Load portfolios
   try {
     S.portfolios = await DB.listPortfolios();
   } catch(e) {
@@ -1154,13 +1294,11 @@ async function init() {
     return;
   }
 
-  // Validate saved folio still exists
   if (S.currentFolioId && !S.portfolios.find(p => p.id === S.currentFolioId)) {
     S.currentFolioId = null;
     localStorage.removeItem('folio_current_id');
   }
 
-  // Auto-select first portfolio
   if (!S.currentFolioId && S.portfolios.length) {
     S.currentFolioId = S.portfolios[0].id;
     localStorage.setItem('folio_current_id', S.currentFolioId);
@@ -1173,7 +1311,6 @@ async function init() {
   if (!S.portfolios.length)
     toast('Welcome to FOLIO! Create your first portfolio to get started.', 'info');
 
-  // Token refresh guard
   S.db.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') {
       localStorage.removeItem('folio_current_id');
