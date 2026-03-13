@@ -11,12 +11,7 @@ Chart.register(...registerables);
 
 // ── CONFIG ─────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const AV_BASE      = 'https://www.alphavantage.co/query';
-const FH_BASE      = 'https://finnhub.io/api/v1';
-
-const sbKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const avKey = import.meta.env.VITE_AV_KEY || '';
-const fhKey = import.meta.env.VITE_FH_KEY || '';
+const sbKey        = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 const CACHE_Q = 24 * 60 * 60 * 1000;  // 24 h — quote TTL
 const CACHE_H = 24 * 60 * 60 * 1000;  // 24 h — history TTL
@@ -25,8 +20,6 @@ const CACHE_H = 24 * 60 * 60 * 1000;  // 24 h — history TTL
 const S = {
   db:             null,
   user:           null,
-  avKey:          '',
-  fhKey:          '',
   portfolios:     [],
   currentFolioId: localStorage.getItem('folio_current_id') || null,
   positions:      [],
@@ -51,9 +44,6 @@ let _originalClassIds = [];
 
 // Track gain state for port chart gradient closure
 let portChartIsGain = true;
-
-// Suppress duplicate "using Finnhub fallback" toasts within a single load cycle
-let _avRateLimited = false;
 
 // Debounce handles for calculator and rebalance
 let _calcTimer = null;
@@ -125,12 +115,6 @@ function isPermissionDenied(error) {
   );
 }
 
-function isRateLimit(error) {
-  if (!error) return false;
-  if (error.isRateLimit) return true;
-  const msg = error.message?.toLowerCase() || '';
-  return msg.includes('rate limit') || msg.includes('call frequency') || msg.includes('thank you');
-}
 
 function handleDbError(error, context = '') {
   if (isPermissionDenied(error)) {
@@ -298,56 +282,43 @@ const DB = {
     }
   },
 
-  async upsertQuote(q) {
-    S.db.from('quotes').upsert({
-      symbol:             q.symbol,
-      name:               q.name || null,
-      price:              q.price ?? null,
-      change:             q.change ?? null,
-      changes_percentage: q.changesPercentage ?? null,
-      market_cap:         q.marketCap || null,
-      pe:                 q.pe || null,
-      year_high:          q.yearHigh ?? null,
-      year_low:           q.yearLow ?? null,
-      dividend_yield:     q.dividendYield ?? 0,
-      cached_at:          new Date().toISOString(),
-    }, { onConflict: 'symbol' }).then(({ error }) => {
-      if (error) console.warn('[FOLIO] Quote cache write skipped:', error.message);
-    });
-  },
 };
 
-// ── ALPHA VANTAGE API ──────────────────────────────────────────
-const API = {
-  async _fetch(url) {
-    const key = S.avKey.trim();
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    try {
-      const r = await fetch(`${url}&apikey=${encodeURIComponent(key)}`, { signal: ctrl.signal });
-      clearTimeout(timer);
-      const data = JSON.parse(await r.text());
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      if (data['Error Message']) throw new Error(data['Error Message']);
-      // Both 'Note' (rate limit) and 'Information' (free plan exhausted) signal rate limiting
-      if (data['Note'] || data['Information']) {
-        throw Object.assign(
-          new Error('Alpha Vantage rate limit reached — try again later'),
-          { isRateLimit: true }
-        );
-      }
-      return data;
-    } catch(e) {
-      clearTimeout(timer);
-      throw e.name === 'AbortError' ? new Error('Request timed out') : e;
-    }
-  },
+// ── API PROXY ──────────────────────────────────────────────────
+// All market data calls go through Vercel serverless functions.
+// API keys (AV_KEY, FH_KEY) live server-side only — never in the bundle.
+async function proxyFetch(path, params) {
+  const { data: { session } } = await S.db.auth.getSession();
+  if (!session?.access_token) throw new Error('Not authenticated');
 
+  const url = new URL(path, window.location.origin);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${r.status}`);
+    }
+    return r.json();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e.name === 'AbortError' ? new Error('Request timed out') : e;
+  }
+}
+
+const API = {
   async _oneQuote(symbol) {
     const cached = Cache.get('q1_' + symbol);
     if (cached) return cached;
 
-    // Try shared DB cache (cross-user) before hitting any API
+    // Check shared DB cache first (written by the server proxy with service role)
     const dbQ = await DB.getQuote(symbol, CACHE_Q);
     if (dbQ) {
       const q = {
@@ -366,46 +337,15 @@ const API = {
       return q;
     }
 
-    // Try Alpha Vantage; on rate limit automatically fall back to Finnhub
-    let q = null;
-    try {
-      const d = await this._fetch(`${AV_BASE}?function=GLOBAL_QUOTE&symbol=${symbol}`);
-      const raw = d?.['Global Quote'];
-      if (raw?.['01. symbol']) {
-        q = {
-          symbol:            raw['01. symbol'],
-          name:              symbol,
-          price:             parseFloat(raw['05. price']),
-          change:            parseFloat(raw['09. change']) || 0,
-          changesPercentage: parseFloat(raw['10. change percent']) || 0,
-          marketCap:         raw['06. market cap'] || null,
-          pe:                raw['07. pe ratio'] || null,
-          yearHigh:          parseFloat(raw['03. high']) || null,
-          yearLow:           parseFloat(raw['04. low']) || null,
-          dividendYield:     parseFloat(raw['08. dividend yield']) || 0,
-        };
-      }
-    } catch(e) {
-      if (isRateLimit(e) && S.fhKey) {
-        if (!_avRateLimited) {
-          toast('Alpha Vantage limit reached — switching to Finnhub', 'info');
-          _avRateLimited = true;
-        }
-        q = await FINNHUB.quote(symbol);
-      } else {
-        throw e;
-      }
+    const data = await proxyFetch('/api/quote', { symbol });
+    if (data?.quote) {
+      Cache.set('q1_' + symbol, data.quote, CACHE_Q);
+      return data.quote;
     }
-
-    if (q) {
-      Cache.set('q1_' + symbol, q, CACHE_Q);
-      DB.upsertQuote(q);
-    }
-    return q;
+    return null;
   },
 
   async quotes(symbols) {
-    _avRateLimited = false; // reset toast flag at start of each batch load
     const results = [];
     for (let i = 0; i < symbols.length; i += 5) {
       const batch = await Promise.all(
@@ -419,122 +359,25 @@ const API = {
     return results;
   },
 
-  // Returns full 1Y+ history sorted newest-first.
-  // Cache key is per-symbol only — switching periods reuses this cache
-  // instead of triggering new API calls.
   async historical(symbol) {
     const cKey = `h_${symbol}`;
     const cached = Cache.get(cKey);
     if (cached) return cached;
-
-    let prices = null;
-    try {
-      const d = await this._fetch(`${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full`);
-      const ts = d?.['Time Series (Daily)'];
-      if (ts) {
-        prices = Object.keys(ts)
-          .sort()
-          .reverse()
-          .map(date => ({ date, close: parseFloat(ts[date]['4. close']) }));
-      }
-    } catch(e) {
-      if (isRateLimit(e) && S.fhKey) {
-        prices = await FINNHUB.historical(symbol);
-      } else {
-        throw e;
-      }
-    }
-
-    if (prices?.length) Cache.set(cKey, prices, CACHE_H);
-    return prices || [];
+    const data   = await proxyFetch('/api/historical', { symbol });
+    const prices = data?.history || [];
+    if (prices.length) Cache.set(cKey, prices, CACHE_H);
+    return prices;
   },
 
   async dividends(symbol) {
     const cKey = `div_${symbol}`;
     const cached = Cache.get(cKey);
     if (cached) return cached;
-
-    let divs = null;
-    try {
-      const d = await this._fetch(`${AV_BASE}?function=DIVIDENDS&symbol=${symbol}`);
-      const data = d?.data;
-      if (Array.isArray(data)) {
-        divs = data.map(div => ({
-          date:     div.ex_dividend_date,
-          label:    div.dividend_type || 'Dividend',
-          dividend: parseFloat(div.amount),
-        }));
-      }
-    } catch(e) {
-      if (isRateLimit(e) && S.fhKey) {
-        divs = await FINNHUB.dividends(symbol);
-      } else {
-        throw e;
-      }
-    }
-
-    if (divs?.length) Cache.set(cKey, divs, CACHE_H);
-    return divs || [];
+    const data = await proxyFetch('/api/dividends', { symbol });
+    const divs = data?.dividends || [];
+    if (divs.length) Cache.set(cKey, divs, CACHE_H);
+    return divs;
   },
-};
-
-// ── FINNHUB PROVIDER (Fallback) ────────────────────────────────
-// Used automatically when Alpha Vantage rate limits are hit.
-// Free tier: 60 req/min — no credit card required.
-// Dividend history not available on free plan (returns empty array).
-const FINNHUB = {
-  async _fetch(path) {
-    const key = S.fhKey.trim();
-    if (!key) throw new Error('No Finnhub API key configured');
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    try {
-      const r = await fetch(`${FH_BASE}${path}&token=${encodeURIComponent(key)}`, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (r.status === 429) throw Object.assign(new Error('Finnhub rate limit reached'), { isRateLimit: true });
-      if (!r.ok) throw new Error(`Finnhub HTTP ${r.status}`);
-      return await r.json();
-    } catch(e) {
-      clearTimeout(timer);
-      throw e.name === 'AbortError' ? new Error('Request timed out') : e;
-    }
-  },
-
-  async quote(symbol) {
-    const [q, p] = await Promise.all([
-      this._fetch(`/quote?symbol=${encodeURIComponent(symbol)}`),
-      this._fetch(`/stock/profile2?symbol=${encodeURIComponent(symbol)}`),
-    ]);
-    // c === 0 means no data (unknown symbol or market closed with no price)
-    if (!q || q.c == null || q.c === 0) return null;
-    return {
-      symbol,
-      name:              p?.name || symbol,
-      price:             q.c,
-      change:            q.d  ?? 0,
-      changesPercentage: q.dp ?? 0,
-      marketCap:         p?.marketCapitalization ? p.marketCapitalization * 1e6 : null,
-      pe:                null,   // requires Finnhub paid metric endpoint
-      yearHigh:          null,   // requires Finnhub paid metric endpoint
-      yearLow:           null,
-      dividendYield:     0,
-      _provider:         'finnhub',
-    };
-  },
-
-  async historical(symbol) {
-    const to   = Math.floor(Date.now() / 1000);
-    const from = to - 366 * 86400; // 366 days of daily candles
-    const d = await this._fetch(
-      `/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=D&from=${from}&to=${to}`
-    );
-    if (!d || d.s !== 'ok' || !Array.isArray(d.c)) return [];
-    return d.t
-      .map((ts, i) => ({ date: new Date(ts * 1000).toISOString().split('T')[0], close: d.c[i] }))
-      .sort((a, b) => b.date.localeCompare(a.date)); // newest first, matches AV shape
-  },
-
-  async dividends() { return []; }, // Not available on Finnhub free tier
 };
 
 // ── PORTFOLIO MATH ─────────────────────────────────────────────
@@ -1290,20 +1133,6 @@ function updateCurrencyButtons() {
 }
 
 function openSettings() {
-  const avInput = $('set-avkey');
-  if (avInput) {
-    avInput.value = '';
-    avInput.placeholder = S.avKey
-      ? 'Key already saved — paste a new key to replace it'
-      : 'Paste your Alpha Vantage API key…';
-  }
-  const fhInput = $('set-fhkey');
-  if (fhInput) {
-    fhInput.value = '';
-    fhInput.placeholder = S.fhKey
-      ? 'Key already saved — paste a new key to replace it'
-      : 'Paste your Finnhub API key…';
-  }
   updateCurrencyButtons();
   $('ov-settings').classList.add('open');
 }
@@ -1428,14 +1257,7 @@ function renderEditor() {
   });
 }
 
-async function saveSettings() {
-  const avKeyInput = $('set-avkey')?.value.trim();
-  if (avKeyInput) { S.avKey = avKeyInput; localStorage.setItem('folio_av_key', avKeyInput); }
-
-  const fhKeyInput = $('set-fhkey')?.value.trim();
-  if (fhKeyInput) { S.fhKey = fhKeyInput; localStorage.setItem('folio_fh_key', fhKeyInput); }
-
-  if (avKeyInput || fhKeyInput) toast('API keys saved');
+function saveSettings() {
   closeOverlay('ov-settings');
 }
 
@@ -1685,7 +1507,6 @@ function initEvents() {
   $('new-folio-name')?.addEventListener('input', function() { this.classList.remove('error'); });
   $('new-folio-name')?.addEventListener('keypress', function(e) { if (e.key === 'Enter') confirmCreateFolio(); });
 
-  $('save-settings')?.addEventListener('click', saveSettings);
   $('save-positions')?.addEventListener('click', savePositions);
   $('add-holding')?.addEventListener('click', () => {
     syncEditorRowsFromDOM();
@@ -1746,11 +1567,6 @@ async function init() {
   const { data: { session } } = await S.db.auth.getSession();
   if (!session) { window.location.href = '/auth.html'; return; }
   S.user = session.user;
-
-  S.avKey = avKey || localStorage.getItem('folio_av_key') || '';
-  S.fhKey = fhKey || localStorage.getItem('folio_fh_key') || '';
-  if (avKey) localStorage.setItem('folio_av_key', avKey);
-  if (fhKey) localStorage.setItem('folio_fh_key', fhKey);
 
   $('app-shell').style.display = 'block';
   fetchFxRate();

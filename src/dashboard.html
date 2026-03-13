@@ -649,28 +649,6 @@ tr.classed td:first-child { padding-left:28px; }
       </div>
 
       <div class="set-section">
-        <h3>Alpha Vantage API Key</h3>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="set-avkey" placeholder="Paste your Alpha Vantage API key…"
-            style="flex:1;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none">
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">
-          Free key at <a href="https://www.alphavantage.co/support/#api-key" target="_blank">alphavantage.co</a> (25 req/min, no credit card)
-        </div>
-      </div>
-
-      <div class="set-section">
-        <h3>Finnhub API Key <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">(Fallback)</span></h3>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="set-fhkey" placeholder="Paste your Finnhub API key…"
-            style="flex:1;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none">
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">
-          Free key at <a href="https://finnhub.io/register" target="_blank">finnhub.io</a> (60 req/min, no credit card). Used automatically when Alpha Vantage is rate-limited.
-        </div>
-      </div>
-
-      <div class="set-section">
         <h3>Import / Export</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost" id="btn-export" style="font-size:12px">⬇ Export JSON</button>
@@ -682,8 +660,7 @@ tr.classed td:first-child { padding-left:28px; }
 
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" data-close="ov-settings">Cancel</button>
-      <button class="btn btn-accent" id="save-settings">Save</button>
+      <button class="btn btn-accent" data-close="ov-settings">Close</button>
     </div>
   </div>
 </div>
