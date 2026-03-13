@@ -16,7 +16,7 @@ const AV_BASE      = 'https://www.alphavantage.co/query';
 const sbKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const avKey = import.meta.env.VITE_AV_KEY || '';
 
-const CACHE_Q = 5  * 60 * 1000;       // 5 min  — quote TTL
+const CACHE_Q = 24 * 60 * 60 * 1000;  // 24 h   — quote TTL (stale threshold)
 const CACHE_H = 24 * 60 * 60 * 1000;  // 24 h   — history TTL
 
 // ── STATE ──────────────────────────────────────────────────────
@@ -967,6 +967,40 @@ async function loadAll() {
   if (!syms.length) return;
 
   const tbody = $('holdings-body');
+
+  // Step 1: try shared DB cache for all symbols (fast, single query)
+  try {
+    const { data: rows } = await S.db
+      .from('quotes')
+      .select('*')
+      .in('symbol', syms);
+
+    if (rows && rows.length) {
+      const now = Date.now();
+      rows.forEach(r => {
+        const q = {
+          symbol:           r.symbol,
+          name:             r.name || r.symbol,
+          price:            r.price ?? null,
+          change:           r.change ?? 0,
+          changesPercentage:r.changes_percentage ?? 0,
+          marketCap:        r.market_cap || null,
+          pe:               r.pe || null,
+          yearHigh:         r.year_high ?? null,
+          yearLow:          r.year_low ?? null,
+          dividendYield:    r.dividend_yield ?? 0,
+        };
+        S.quotes[q.symbol] = q;
+        Cache.set('q1_' + q.symbol, q, CACHE_Q);
+      });
+
+      renderDash();
+      renderHoldings();
+    }
+  } catch(e) {
+    // Non-fatal: we can still fall back to API path below
+  }
+
   if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
 
   try {
