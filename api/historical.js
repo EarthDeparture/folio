@@ -21,8 +21,8 @@ export default async function handler(req, res) {
   if (AV_KEY) {
     try {
       const r = await fetch(
-        `${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(symbol)}&outputsize=full&apikey=${AV_KEY}`,
-        { signal: AbortSignal.timeout(30000) }
+        `${AV_BASE}?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(symbol)}&outputsize=compact&apikey=${AV_KEY}`,
+        { signal: AbortSignal.timeout(15000) }
       );
       const data = await r.json();
       if (data['Note'] || data['Information']) throw Object.assign(new Error('Rate limited'), { isRateLimit: true });

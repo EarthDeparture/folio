@@ -80,6 +80,7 @@ async function fetchFxRate() {
   if (cached) { S.fxRate = cached; return; }
   try {
     const r = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
     const rate = d?.rates?.CAD;
     if (rate) {
@@ -97,12 +98,13 @@ function toast(msg, type = 'success') {
   el.className = `toast ${type}`;
   el.textContent = msg;
   $('toast-container').appendChild(el);
+  const duration = type === 'error' ? 8000 : 3500;
   setTimeout(() => {
     el.style.transition = 'opacity .25s, transform .25s';
     el.style.opacity = '0';
     el.style.transform = 'translateX(12px)';
     setTimeout(() => el.remove(), 260);
-  }, 3500);
+  }, duration);
 }
 
 // ── ERROR CLASSIFIER ───────────────────────────────────────────
@@ -748,16 +750,20 @@ async function loadPortChart(period) {
   const days = { '1M':30, '3M':90, '6M':182, '1Y':365 }[period] || 30;
   const from = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
 
+  const syms = S.positions.map(h => h.symbol);
   const allHist = {};
-  for (const sym of S.positions.map(h => h.symbol)) {
+  // Fetch all symbols in parallel — API.historical caches by symbol so period
+  // switches reuse cached data; sorted ascending so chart renders oldest→newest
+  await Promise.all(syms.map(async sym => {
     try {
-      // API.historical caches by symbol — period switches reuse the same data
       const full = await API.historical(sym);
-      allHist[sym] = full.filter(d => d.date >= from);
+      allHist[sym] = full
+        .filter(d => d.date >= from)
+        .sort((a, b) => a.date.localeCompare(b.date));
     } catch(e) {
       allHist[sym] = [];
     }
-  }
+  }));
 
   const sample = Object.values(allHist).find(a => a.length) || [];
   const dates  = sample.map(d => d.date);
@@ -1447,7 +1453,12 @@ async function savePositions() {
 // ── EXPORT / IMPORT ────────────────────────────────────────────
 function exportJSON() {
   const folio = S.portfolios.find(p => p.id === S.currentFolioId);
-  const blob  = new Blob([JSON.stringify({ folio: folio?.name || 'Unknown', positions: S.positions, exportedAt: new Date().toISOString() }, null, 2)], { type:'application/json' });
+  const blob  = new Blob([JSON.stringify({
+    folio:       folio?.name || 'Unknown',
+    positions:   S.positions,
+    classes:     S.classes,
+    exportedAt:  new Date().toISOString(),
+  }, null, 2)], { type:'application/json' });
   const a     = document.createElement('a');
   a.href      = URL.createObjectURL(blob);
   a.download  = `folio-${(folio?.name||'export').replace(/\s/g,'-')}-${new Date().toISOString().split('T')[0]}.json`;
@@ -1462,8 +1473,30 @@ async function importJSON(file) {
     if (!Array.isArray(data.positions)) throw new Error('Invalid file format');
     if (!confirm(`Import ${data.positions.length} positions into a new portfolio "${data.folio || 'Imported'}"?`)) return;
     const folio = await DB.createPortfolio(data.folio || 'Imported');
-    for (const p of data.positions)
-      await DB.upsertPosition(folio.id, p.symbol, p.shares, p.avg_cost ?? p.avgCost ?? 0, p.color);
+
+    // Re-create classes with fresh IDs; build a map from old ID → new ID
+    // so position class_id references can be remapped correctly
+    const classIdMap = {};
+    if (Array.isArray(data.classes)) {
+      for (let i = 0; i < data.classes.length; i++) {
+        const cls   = data.classes[i];
+        const newId = crypto.randomUUID();
+        classIdMap[cls.id] = newId;
+        await DB.upsertClass(folio.id, {
+          id:           newId,
+          name:         cls.name,
+          targetWeight: cls.target_weight ?? 0,
+          color:        cls.color || null,
+          sortOrder:    cls.sort_order ?? i,
+        });
+      }
+    }
+
+    for (const p of data.positions) {
+      const remappedClassId = p.class_id ? (classIdMap[p.class_id] || null) : null;
+      await DB.upsertPosition(folio.id, p.symbol, p.shares, p.avg_cost ?? p.avgCost ?? 0, p.color, p.target_weight ?? 0, remappedClassId);
+    }
+
     S.portfolios.push(folio);
     S.currentFolioId = folio.id;
     localStorage.setItem('dividnd_current_id', folio.id);
@@ -1602,7 +1635,13 @@ function initEvents() {
   });
 
   $('folio-pill')?.addEventListener('click', openFolioModal);
-  $('btn-refresh')?.addEventListener('click', () => { Cache.clearQuotes(); loadAll(); });
+  $('btn-refresh')?.addEventListener('click', () => {
+    const btn = $('btn-refresh');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    Cache.clearQuotes();
+    loadAll().finally(() => { btn.disabled = false; });
+  });
   $('btn-settings')?.addEventListener('click', openSettings);
   $('btn-add-pos')?.addEventListener('click', openPositions);
   $('dash-create-btn')?.addEventListener('click', openFolioModal);

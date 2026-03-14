@@ -31,6 +31,10 @@ export default async function handler(req, res) {
     { db: { schema: 'folio' } }
   );
 
+  // Statuses that should retain premium access (e.g. past_due = payment failed but
+  // still in grace period; trialing = free trial active)
+  const PREMIUM_STATUSES = ['active', 'trialing', 'past_due'];
+
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
@@ -58,7 +62,7 @@ export default async function handler(req, res) {
 
       await sb.from('user_plans').upsert({
         user_id:                userId,
-        plan:                   sub.status === 'active' ? 'premium' : 'free',
+        plan:                   PREMIUM_STATUSES.includes(sub.status) ? 'premium' : 'free',
         stripe_customer_id:     sub.customer,
         stripe_subscription_id: sub.id,
         stripe_price_id:        sub.items.data[0]?.price.id || null,
