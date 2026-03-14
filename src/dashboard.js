@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 Chart.register(...registerables);
 
 // ═══════════════════════════════════════════════════════════════
-// FOLIO · Dashboard
+// DIVIDND · Dashboard
 // Auth: Supabase RLS — all ownership enforced at DB level via
 //       auth.uid(). No browser_id. JWT auto-attached by client.
 // ═══════════════════════════════════════════════════════════════
@@ -21,7 +21,7 @@ const S = {
   db:             null,
   user:           null,
   portfolios:     [],
-  currentFolioId: localStorage.getItem('folio_current_id') || null,
+  currentFolioId: localStorage.getItem('dividnd_current_id') || null,
   positions:      [],
   classes:        [],
   quotes:         {},
@@ -30,9 +30,9 @@ const S = {
   sortDir:        -1,
   drip:           true,
   charts:         { port: null, alloc: null, calc: null, stock: null },
-  currency:       localStorage.getItem('folio_currency') || 'USD',
+  currency:       localStorage.getItem('dividnd_currency') || 'USD',
   fxRate:         1.0,
-  showCombined:   localStorage.getItem('folio_combined') === 'true',
+  showCombined:   localStorage.getItem('dividnd_combined') === 'true',
   allPositions:   [],
 };
 
@@ -83,7 +83,7 @@ async function fetchFxRate() {
       Cache.set('fx_usd_cad', rate, 24 * 60 * 60 * 1000);
     }
   } catch(e) {
-    console.warn('[FOLIO] FX rate fetch failed:', e.message);
+    console.warn('[DIVIDND] FX rate fetch failed:', e.message);
   }
 }
 
@@ -118,11 +118,11 @@ function isPermissionDenied(error) {
 
 function handleDbError(error, context = '') {
   if (isPermissionDenied(error)) {
-    console.error(`[FOLIO] Permission denied — ${context} | user: ${S.user?.id}`, error);
+    console.error(`[DIVIDND] Permission denied — ${context} | user: ${S.user?.id}`, error);
     toast('Permission denied. Please sign out and sign back in.', 'error');
     return;
   }
-  console.error(`[FOLIO] DB error — ${context}`, error);
+  console.error(`[DIVIDND] DB error — ${context}`, error);
   toast(error.message || 'Database error', 'error');
 }
 
@@ -141,18 +141,18 @@ function initDB() {
 // ── LOCAL CACHE ────────────────────────────────────────────────
 const Cache = {
   set(k, d, ttl) {
-    try { localStorage.setItem('folio_c_' + k, JSON.stringify({ d, exp: Date.now() + ttl })); } catch(e) {}
+    try { localStorage.setItem('dividnd_c_' + k, JSON.stringify({ d, exp: Date.now() + ttl })); } catch(e) {}
   },
   get(k) {
     try {
-      const c = JSON.parse(localStorage.getItem('folio_c_' + k));
+      const c = JSON.parse(localStorage.getItem('dividnd_c_' + k));
       if (c && Date.now() < c.exp) return c.d;
     } catch {}
     return null;
   },
   clearQuotes() {
     Object.keys(localStorage)
-      .filter(k => k.startsWith('folio_c_q1_') || k.startsWith('folio_c_h_') || k.startsWith('folio_c_div_'))
+      .filter(k => k.startsWith('dividnd_c_q1_') || k.startsWith('dividnd_c_h_') || k.startsWith('dividnd_c_div_'))
       .forEach(k => localStorage.removeItem(k));
     toast('Quote cache cleared');
   },
@@ -350,7 +350,7 @@ const API = {
     for (let i = 0; i < symbols.length; i += 5) {
       const batch = await Promise.all(
         symbols.slice(i, i + 5).map(sym =>
-          this._oneQuote(sym).catch(e => { console.error(`[FOLIO] Quote failed ${sym}:`, e.message); return null; })
+          this._oneQuote(sym).catch(e => { console.error(`[DIVIDND] Quote failed ${sym}:`, e.message); return null; })
         )
       );
       results.push(...batch.filter(Boolean));
@@ -474,7 +474,7 @@ async function loadAllPositions() {
       });
     }
   } catch(e) {
-    console.warn('[FOLIO] loadAllPositions failed:', e.message);
+    console.warn('[DIVIDND] loadAllPositions failed:', e.message);
     S.allPositions = [];
   }
 }
@@ -1058,7 +1058,7 @@ async function renderFolioList() {
 
 function selectFolio(id) {
   S.currentFolioId = id;
-  localStorage.setItem('folio_current_id', id);
+  localStorage.setItem('dividnd_current_id', id);
   closeOverlay('ov-folio');
   updateFolioPill();
   loadAll();
@@ -1071,7 +1071,7 @@ async function deleteFolio(id, name) {
     await DB.deletePortfolio(id);
     if (S.currentFolioId === id) {
       S.currentFolioId = null; S.positions = [];
-      localStorage.removeItem('folio_current_id');
+      localStorage.removeItem('dividnd_current_id');
       updateFolioPill(); renderDash(); renderHoldings();
     }
     toast('Portfolio deleted');
@@ -1111,7 +1111,7 @@ async function confirmCreateFolio() {
     S.portfolios.push(folio);
     S.currentFolioId = folio.id;
     S.positions = [];
-    localStorage.setItem('folio_current_id', folio.id);
+    localStorage.setItem('dividnd_current_id', folio.id);
     closeOverlay('ov-create-folio');
     closeOverlay('ov-folio');
     updateFolioPill();
@@ -1361,7 +1361,7 @@ async function importJSON(file) {
       await DB.upsertPosition(folio.id, p.symbol, p.shares, p.avg_cost ?? p.avgCost ?? 0, p.color);
     S.portfolios.push(folio);
     S.currentFolioId = folio.id;
-    localStorage.setItem('folio_current_id', folio.id);
+    localStorage.setItem('dividnd_current_id', folio.id);
     updateFolioPill();
     await loadAll();
     toast('Import complete: ' + folio.name);
@@ -1384,7 +1384,7 @@ async function loadAll() {
     S.classes = await DB.listClasses(S.currentFolioId);
   } catch(e) {
     S.classes = [];
-    console.warn('[FOLIO] Classes unavailable:', e.message);
+    console.warn('[DIVIDND] Classes unavailable:', e.message);
   }
 
   renderDash(); renderHoldings();
@@ -1481,17 +1481,17 @@ function initEvents() {
   });
 
   $('set-currency-usd')?.addEventListener('click', () => {
-    S.currency = 'USD'; localStorage.setItem('folio_currency', 'USD');
+    S.currency = 'USD'; localStorage.setItem('dividnd_currency', 'USD');
     updateCurrencyButtons(); renderDash();
   });
   $('set-currency-cad')?.addEventListener('click', () => {
-    S.currency = 'CAD'; localStorage.setItem('folio_currency', 'CAD');
+    S.currency = 'CAD'; localStorage.setItem('dividnd_currency', 'CAD');
     updateCurrencyButtons(); renderDash();
   });
 
   $('btn-combined')?.addEventListener('click', async () => {
     S.showCombined = !S.showCombined;
-    localStorage.setItem('folio_combined', S.showCombined);
+    localStorage.setItem('dividnd_combined', S.showCombined);
     if (S.showCombined) await loadAllPositions();
     renderDash();
   });
@@ -1530,7 +1530,7 @@ function initEvents() {
 
   $('btn-logout')?.addEventListener('click', async () => {
     await S.db.auth.signOut();
-    localStorage.removeItem('folio_current_id');
+    localStorage.removeItem('dividnd_current_id');
     window.location.href = '/';
   });
 
@@ -1581,12 +1581,12 @@ async function init() {
 
   if (S.currentFolioId && !S.portfolios.find(p => p.id === S.currentFolioId)) {
     S.currentFolioId = null;
-    localStorage.removeItem('folio_current_id');
+    localStorage.removeItem('dividnd_current_id');
   }
 
   if (!S.currentFolioId && S.portfolios.length) {
     S.currentFolioId = S.portfolios[0].id;
-    localStorage.setItem('folio_current_id', S.currentFolioId);
+    localStorage.setItem('dividnd_current_id', S.currentFolioId);
   }
 
   updateFolioPill();
@@ -1594,11 +1594,11 @@ async function init() {
   await loadAll();
 
   if (!S.portfolios.length)
-    toast('Welcome to FOLIO! Create your first portfolio to get started.', 'info');
+    toast('Welcome to DIVIDND! Create your first portfolio to get started.', 'info');
 
   S.db.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') {
-      localStorage.removeItem('folio_current_id');
+      localStorage.removeItem('dividnd_current_id');
       window.location.href = '/';
     }
   });

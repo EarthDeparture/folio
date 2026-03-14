@@ -70,6 +70,18 @@ export function resetForm() {
 }
 
 // ── AUTH ACTIONS ───────────────────────────────────────────────
+export async function signInWithGoogle() {
+  try {
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/dashboard.html' },
+    });
+    if (error) throw error;
+  } catch(err) {
+    showError('Google Sign-In Failed', err.message || 'Could not connect to Google.');
+  }
+}
+
 export async function signIn(email, password) {
   showLoading('Signing in...');
   try {
