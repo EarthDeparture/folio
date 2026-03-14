@@ -144,3 +144,27 @@ revoke insert, update, delete on folio.quotes from anon, authenticated;
 -- After running: Supabase Dashboard -> Settings -> API
 -- Under "Extra search path" add:  folio
 -- =============================================================================
+
+-- =============================================================================
+-- Migration: Monetization — user_plans table
+-- Run in Supabase SQL Editor after the initial schema above
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS folio.user_plans (
+  user_id                UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  plan                   TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'premium')),
+  stripe_customer_id     TEXT,
+  stripe_subscription_id TEXT,
+  stripe_price_id        TEXT,
+  current_period_end     TIMESTAMPTZ,
+  cancel_at_period_end   BOOLEAN DEFAULT FALSE,
+  created_at             TIMESTAMPTZ DEFAULT NOW(),
+  updated_at             TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE folio.user_plans ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_plans_select" ON folio.user_plans
+  FOR SELECT USING (user_id = auth.uid());
+
+-- Inserts/updates only via service role (Stripe webhook)

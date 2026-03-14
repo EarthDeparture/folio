@@ -295,27 +295,31 @@ img { max-width:100%; }
 
 /* ── PRICING ── */
 .pricing { padding:80px 0; background:var(--surface); }
-.price-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:24px; max-width:780px; margin:60px auto 0; }
+.pricing-toggle { display:flex; gap:4px; background:var(--card); border:1px solid var(--border);
+  border-radius:10px; padding:3px; width:fit-content; margin:0 auto 40px; }
+.pricing-toggle button { padding:8px 22px; border:none; background:transparent;
+  color:var(--muted); font-size:14px; font-weight:500; border-radius:8px; cursor:pointer;
+  transition:all .15s; }
+.pricing-toggle button.active { background:var(--ba); color:var(--accent); font-weight:600; }
+.pricing-toggle .save-badge { font-size:11px; color:var(--accent); margin-left:4px; }
+.price-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:24px; max-width:780px; margin:0 auto; }
 .price-card {
   background:var(--card); border:1px solid var(--border);
-  border-radius:16px; padding:36px;
+  border-radius:16px; padding:36px; position:relative;
 }
-.price-card.featured {
+.price-card.premium {
   border-color:var(--ba);
   background:rgba(20,240,168,.04);
-  position:relative; overflow:hidden;
 }
-.price-card.featured::before {
-  content:'FREE FOREVER';
-  position:absolute; top:18px; right:-28px;
-  background:var(--accent); color:#060a14;
-  font-size:9px; font-weight:700; letter-spacing:.1em;
-  padding:4px 40px; transform:rotate(45deg);
-}
+.price-badge { position:absolute; top:-13px; left:50%; transform:translateX(-50%);
+  background:var(--accent); color:#060a14; font-size:10px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; padding:3px 14px; border-radius:20px;
+  white-space:nowrap; }
 .price-tier { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; margin-bottom:14px; }
-.price-amount { font-family:var(--mono); font-size:48px; font-weight:700; letter-spacing:-.03em; line-height:1; margin-bottom:8px; }
+.price-amount { font-family:var(--mono); font-size:48px; font-weight:700; letter-spacing:-.03em; line-height:1; margin-bottom:4px; }
 .price-amount .currency { font-size:22px; vertical-align:super; }
 .price-amount .period { font-size:14px; color:var(--muted); font-family:var(--sans); }
+.price-billing { font-size:12px; color:var(--muted); margin-bottom:28px; min-height:18px; }
 .price-desc { color:var(--muted); font-size:14px; margin-bottom:28px; line-height:1.5; }
 .price-features { display:flex; flex-direction:column; gap:12px; margin-bottom:32px; }
 .pf-item { display:flex; align-items:center; gap:10px; font-size:14px; }
@@ -409,12 +413,12 @@ footer {
 <!-- ── HERO ── -->
 <section class="hero">
   <div class="wrap">
-    <div class="hero-badge">Free Forever · No Credit Card</div>
+    <div class="hero-badge">Free to start · No credit card required</div>
     <h1>Track Every Portfolio.<br><span>Miss Nothing.</span></h1>
     <p>Real-time quotes, beautiful charts, and dividend tracking — all in one clean dashboard designed for serious investors.</p>
     <div class="hero-cta">
       <a href="/auth.html#signup" class="btn btn-accent btn-lg">Start Tracking Free →</a>
-      <a href="#how-it-works" class="btn btn-outline btn-lg">See How It Works</a>
+      <a href="#pricing" class="btn btn-outline btn-lg">View pricing</a>
     </div>
     <div class="hero-meta">
       <div class="hero-meta-item">
@@ -427,7 +431,7 @@ footer {
       </div>
       <div class="hero-meta-item">
         <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
-        All features included
+        Premium from $59/yr
       </div>
     </div>
 
@@ -705,38 +709,45 @@ footer {
     <div class="section-head">
       <div class="section-tag">Pricing</div>
       <h2>Simple, honest pricing.</h2>
-      <p>We're not here to lock you into a subscription. DIVIDND is free. Start using it today.</p>
+      <p>Start free. Upgrade when you need more.</p>
+    </div>
+    <div class="pricing-toggle">
+      <button id="toggle-annual" class="active" onclick="setPricingMode('annual')">Annually <span class="save-badge">Save 37%</span></button>
+      <button id="toggle-monthly" onclick="setPricingMode('monthly')">Monthly</button>
     </div>
     <div class="price-grid">
-      <div class="price-card featured">
+      <!-- Free -->
+      <div class="price-card">
         <div class="price-tier">Free</div>
         <div class="price-amount"><span class="currency">$</span>0<span class="period"> / forever</span></div>
-        <p class="price-desc">Everything you need to manage your portfolio like a professional investor.</p>
+        <div class="price-billing">No credit card ever required</div>
         <div class="price-features">
-          <div class="pf-item"><span class="pf-check">✓</span> Unlimited portfolios</div>
+          <div class="pf-item"><span class="pf-check">✓</span> 1 portfolio</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Up to 5 positions</div>
           <div class="pf-item"><span class="pf-check">✓</span> Real-time stock quotes</div>
-          <div class="pf-item"><span class="pf-check">✓</span> Portfolio value charts (1M/3M/6M/1Y)</div>
-          <div class="pf-item"><span class="pf-check">✓</span> Allocation breakdown</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Portfolio charts (1M/3M/6M/1Y)</div>
           <div class="pf-item"><span class="pf-check">✓</span> Dividend tracking</div>
           <div class="pf-item"><span class="pf-check">✓</span> Future value calculator</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Rebalance tool</div>
           <div class="pf-item"><span class="pf-check">✓</span> Import / Export JSON</div>
-          <div class="pf-item"><span class="pf-check">✓</span> Private & secure (RLS)</div>
         </div>
-        <a href="/auth.html#signup" class="btn btn-accent" style="width:100%;justify-content:center;padding:14px;">Get Started Free →</a>
+        <a href="/auth.html#signup" class="btn btn-ghost" style="width:100%;justify-content:center;padding:14px">Start Free</a>
       </div>
-      <div class="price-card">
-        <div class="price-tier">Pro — Coming Soon</div>
-        <div class="price-amount" style="color:var(--muted)"><span class="currency" style="font-size:16px">$</span>—</div>
-        <p class="price-desc">Advanced features for power users. Launching soon.</p>
+      <!-- Premium -->
+      <div class="price-card premium">
+        <div class="price-badge">Most Popular</div>
+        <div class="price-tier">Premium</div>
+        <div class="price-amount"><span class="currency">$</span><span id="prem-price">4.92</span><span class="period">/month</span></div>
+        <div class="price-billing" id="prem-billing">Billed $59/year — save $25</div>
         <div class="price-features">
           <div class="pf-item"><span class="pf-check">✓</span> Everything in Free</div>
-          <div class="pf-item"><span class="pf-x">◌</span> Price alerts &amp; notifications</div>
-          <div class="pf-item"><span class="pf-x">◌</span> Custom watchlists</div>
-          <div class="pf-item"><span class="pf-x">◌</span> Tax lot tracking</div>
-          <div class="pf-item"><span class="pf-x">◌</span> Performance benchmarking</div>
-          <div class="pf-item"><span class="pf-x">◌</span> API access</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Unlimited portfolios</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Unlimited positions</div>
+          <div class="pf-item"><span class="pf-check">✓</span> Sub-classes &amp; target weights</div>
+          <div class="pf-item"><span class="pf-check">✓</span> All current and future features</div>
         </div>
-        <button class="btn btn-outline" style="width:100%;justify-content:center;padding:14px;" disabled>Notify Me When Live</button>
+        <a href="/auth.html#signup" class="btn btn-accent" style="width:100%;justify-content:center;padding:14px">Get Premium →</a>
+        <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">Cancel anytime · Data always yours</p>
       </div>
     </div>
   </div>
@@ -752,7 +763,19 @@ footer {
     <div class="faq-list">
       <div class="faq-item">
         <div class="faq-q">Is DIVIDND really free?<span class="faq-icon">+</span></div>
-        <div class="faq-a">Yes — completely free. No subscription, no premium tier, no credit card ever required. We built DIVIDND because we needed it ourselves.</div>
+        <div class="faq-a">Yes — our free plan is genuinely free, no credit card required. You get 1 portfolio with up to 5 positions and all core features. Premium unlocks unlimited portfolios and positions for $59/year.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">How many portfolios can I create?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Free plan: 1 portfolio with up to 5 positions. Premium: unlimited portfolios and positions. Switch between them instantly from the top bar.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Can I cancel my subscription?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Yes, anytime from your account settings with one click. No questions asked. Your data is always yours and always exportable.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">What happens if I downgrade?<span class="faq-icon">+</span></div>
+        <div class="faq-a">Your data stays safe. You can still view existing portfolios and positions, but won't be able to add new portfolios or exceed 5 positions until you upgrade again.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q">How is my data protected?<span class="faq-icon">+</span></div>
@@ -767,10 +790,6 @@ footer {
         <div class="faq-a">Yes. Any ticker symbol on a major exchange works — US stocks, Canadian stocks (TSX), ETFs, and most mutual funds. Just enter the symbol exactly as it trades.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">How many portfolios can I create?<span class="faq-icon">+</span></div>
-        <div class="faq-a">Unlimited. Create as many portfolios as you need — one for each account type, investment strategy, or goal. Switch between them instantly from the top bar.</div>
-      </div>
-      <div class="faq-item">
         <div class="faq-q">Can I export my data?<span class="faq-icon">+</span></div>
         <div class="faq-a">Yes. Export any portfolio as a JSON file at any time. Your data is yours — always portable, never locked in.</div>
       </div>
@@ -782,7 +801,7 @@ footer {
 <section class="cta-final">
   <div class="wrap-sm">
     <h2>Your portfolio deserves<br><span>better than a spreadsheet.</span></h2>
-    <p>Start tracking in 2 minutes. Free forever. No card required.</p>
+    <p>Start free in 2 minutes. Premium from $59/yr. No card required to start.</p>
     <div class="cta-group">
       <a href="/auth.html#signup" class="btn btn-accent btn-lg">Create Free Account →</a>
       <a href="/auth.html" class="btn btn-ghost btn-lg">Sign In</a>
@@ -800,7 +819,7 @@ footer {
         <a href="#pricing">Pricing</a>
         <a href="#faq">FAQ</a>
       </div>
-      <div class="footer-copy">© 2026 DIVIDND. Built for investors.</div>
+      <div class="footer-copy">© 2026 DIVIDND. Free to start · Premium from $59/yr</div>
     </div>
   </div>
 </footer>
@@ -815,6 +834,24 @@ document.querySelectorAll('.faq-q').forEach(q => {
     if (!isOpen) item.classList.add('open');
   });
 });
+
+// Pricing toggle
+let _pricingMode = 'annual';
+function setPricingMode(mode) {
+  _pricingMode = mode;
+  document.getElementById('toggle-annual').classList.toggle('active', mode === 'annual');
+  document.getElementById('toggle-monthly').classList.toggle('active', mode === 'monthly');
+  const price   = document.getElementById('prem-price');
+  const billing = document.getElementById('prem-billing');
+  if (mode === 'annual') {
+    if (price)   price.textContent   = '4.92';
+    if (billing) billing.textContent = 'Billed $59/year — save $25';
+  } else {
+    if (price)   price.textContent   = '7';
+    if (billing) billing.textContent = 'Billed monthly';
+  }
+}
+window.setPricingMode = setPricingMode;
 
 // If already logged in, redirect to dashboard
 import { createClient } from '@supabase/supabase-js';

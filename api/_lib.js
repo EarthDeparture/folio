@@ -2,6 +2,17 @@
 // Files prefixed with _ are NOT exposed as Vercel endpoints.
 import { createClient } from '@supabase/supabase-js';
 
+export const FREE_LIMITS = { portfolios: 1, positions: 5 };
+
+export async function getUserPlan(sb, userId) {
+  const { data } = await sb
+    .from('user_plans')
+    .select('plan, current_period_end, cancel_at_period_end')
+    .eq('user_id', userId)
+    .single();
+  return data?.plan || 'free';
+}
+
 /**
  * Verifies the Supabase JWT from the Authorization header.
  * Returns a service-role Supabase client on success (used for cache writes),
@@ -26,5 +37,14 @@ export async function authenticate(req, res) {
     return null;
   }
 
-  return sb; // service-role client — can write to folio.quotes
+  return { sb, user }; // service-role client + authenticated user
+}
+
+/**
+ * Legacy: returns only the sb client. Kept for backward compatibility
+ * with existing routes that do:  const sb = await authenticate(req, res);
+ */
+export async function authenticateSb(req, res) {
+  const result = await authenticate(req, res);
+  return result?.sb ?? null;
 }

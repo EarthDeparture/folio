@@ -1,11 +1,11 @@
-import { authenticate } from './_lib.js';
+import { authenticateSb } from './_lib.js';
 
 const AV_BASE = 'https://www.alphavantage.co/query';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
-  const sb = await authenticate(req, res);
+  const sb = await authenticateSb(req, res);
   if (!sb) return;
 
   const symbol = (req.query.symbol || '').toUpperCase().trim();

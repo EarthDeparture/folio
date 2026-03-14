@@ -34,7 +34,11 @@ const S = {
   fxRate:         1.0,
   showCombined:   localStorage.getItem('dividnd_combined') === 'true',
   allPositions:   [],
+  plan:           'free',
 };
+
+const FREE_LIMITS = { portfolios: 1, positions: 5 };
+const isPremium = () => S.plan === 'premium';
 
 // Separate editor state so Settings edits do not mutate live positions
 let editorRows = [];
@@ -287,20 +291,26 @@ const DB = {
 // ── API PROXY ──────────────────────────────────────────────────
 // All market data calls go through Vercel serverless functions.
 // API keys (AV_KEY, FH_KEY) live server-side only — never in the bundle.
-async function proxyFetch(path, params) {
+async function proxyFetch(path, params = {}, method = 'GET', body = null) {
   const { data: { session } } = await S.db.auth.getSession();
   if (!session?.access_token) throw new Error('Not authenticated');
 
   const url = new URL(path, window.location.origin);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  if (method === 'GET') Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25000);
   try {
-    const r = await fetch(url, {
+    const fetchOpts = {
+      method,
       headers: { Authorization: `Bearer ${session.access_token}` },
       signal: ctrl.signal,
-    });
+    };
+    if (method === 'POST' && body !== null) {
+      fetchOpts.headers['Content-Type'] = 'application/json';
+      fetchOpts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, fetchOpts);
     clearTimeout(timer);
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
@@ -1079,6 +1089,82 @@ async function deleteFolio(id, name) {
   } catch(e) { /* already handled in DB layer */ }
 }
 
+// ── PLAN / UPGRADE ─────────────────────────────────────────────
+async function loadPlan() {
+  try {
+    const data = await proxyFetch('/api/subscription');
+    S.plan = data.plan || 'free';
+  } catch(e) { S.plan = 'free'; }
+  updatePlanUI();
+}
+
+function updatePlanUI() {
+  const badge = $('plan-badge');
+  if (badge) {
+    badge.textContent = isPremium() ? 'Premium' : 'Free';
+    badge.className   = `plan-badge ${isPremium() ? 'premium' : 'free'}`;
+  }
+  const actionBtn = $('plan-action-btn');
+  if (actionBtn) {
+    actionBtn.textContent = isPremium() ? 'Manage Billing' : 'Upgrade to Premium';
+    actionBtn.onclick = isPremium() ? openBillingPortal : () => showUpgradeModal('portfolio');
+  }
+}
+
+function showUpgradeModal(reason) {
+  const msgs = {
+    portfolio: 'Free plan includes 1 portfolio. Upgrade to Premium for unlimited portfolios and positions.',
+    position:  'Free plan includes up to 5 positions. Upgrade to Premium for unlimited positions.',
+    subclass:  'Sub-classes and target weight tracking are Premium features.',
+  };
+  $('upgrade-body').textContent = msgs[reason] || msgs.portfolio;
+  $('ov-upgrade').classList.add('open');
+}
+
+let _upgradeMode = 'monthly';
+function setUpgradeToggle(mode) {
+  _upgradeMode = mode;
+  $('upg-monthly').classList.toggle('active', mode === 'monthly');
+  $('upg-annual').classList.toggle('active',  mode === 'annual');
+  if (mode === 'annual') {
+    $('upg-price').innerHTML      = '$4.92<span>/month</span>';
+    $('upg-billing').textContent  = 'Billed $59/year — save $25';
+  } else {
+    $('upg-price').innerHTML      = '$7<span>/month</span>';
+    $('upg-billing').textContent  = 'Billed monthly';
+  }
+}
+
+async function handleCheckout() {
+  const priceId = _upgradeMode === 'annual'
+    ? import.meta.env.VITE_STRIPE_PRICE_ANNUAL
+    : import.meta.env.VITE_STRIPE_PRICE_MONTHLY;
+  const btn = $('btn-checkout');
+  btn.textContent = 'Redirecting…';
+  btn.disabled    = true;
+  try {
+    const { url } = await proxyFetch('/api/checkout', {}, 'POST', {
+      priceId,
+      successUrl: window.location.origin + '/dashboard.html?upgraded=1',
+      cancelUrl:  window.location.href,
+    });
+    window.location.href = url;
+  } catch(e) {
+    toast('Could not start checkout. Please try again.', 'error');
+    btn.textContent = 'Upgrade to Premium';
+    btn.disabled    = false;
+  }
+}
+
+async function openBillingPortal() {
+  try {
+    const { url } = await proxyFetch('/api/portal', {}, 'POST', {
+      returnUrl: window.location.origin + '/dashboard.html',
+    });
+    window.location.href = url;
+  } catch(e) { toast('Could not open billing portal.', 'error'); }
+}
+
 // ── CREATE PORTFOLIO MODAL ──────────────────────────────────────
 function openCreateFolioModal() {
   const nameInput = $('new-folio-name');
@@ -1101,6 +1187,11 @@ async function confirmCreateFolio() {
 
   if (name.length > 50) {
     toast('Portfolio name too long (max 50 characters)', 'error');
+    return;
+  }
+
+  if (!isPremium() && S.portfolios.length >= FREE_LIMITS.portfolios) {
+    showUpgradeModal('portfolio');
     return;
   }
 
@@ -1134,6 +1225,7 @@ function updateCurrencyButtons() {
 
 function openSettings() {
   updateCurrencyButtons();
+  updatePlanUI();
   $('ov-settings').classList.add('open');
 }
 
@@ -1144,7 +1236,14 @@ function openPositions() {
   _originalClassIds = S.classes.map(c => c.id);
   _deletedClassIds  = [];
   editorRows = S.positions.map(p => ({ ...p }));
-  renderClassEditor();
+
+  // Show/hide sub-class editor based on plan
+  const classSection = $('classes-section-wrap');
+  const classLock    = $('classes-lock');
+  if (classSection) classSection.style.display = isPremium() ? '' : 'none';
+  if (classLock)    classLock.style.display     = isPremium() ? 'none' : '';
+
+  if (isPremium()) renderClassEditor();
   renderEditor();
   $('ov-positions').classList.add('open');
 }
@@ -1297,6 +1396,12 @@ async function savePositions() {
       posData.push({ sym, shares, cost, color, tw, classId: classId || null });
     }
   });
+
+  // Enforce free-tier position limit
+  if (!isPremium() && editorRows.length > FREE_LIMITS.positions) {
+    showUpgradeModal('position');
+    return;
+  }
 
   // Validate intra-class weight sums
   for (const [clsId, sum] of Object.entries(classIntraSums)) {
@@ -1570,6 +1675,7 @@ async function init() {
 
   $('app-shell').style.display = 'block';
   fetchFxRate();
+  loadPlan(); // non-blocking — updates UI when resolved
   if (S.showCombined) loadAllPositions().then(() => renderDash());
 
   try {
@@ -1596,6 +1702,12 @@ async function init() {
   if (!S.portfolios.length)
     toast('Welcome to DIVIDND! Create your first portfolio to get started.', 'info');
 
+  // Post-checkout success redirect
+  if (new URLSearchParams(location.search).get('upgraded') === '1') {
+    toast('Welcome to Premium!', 'info');
+    history.replaceState({}, '', '/dashboard.html');
+  }
+
   S.db.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') {
       localStorage.removeItem('dividnd_current_id');
@@ -1603,5 +1715,10 @@ async function init() {
     }
   });
 }
+
+// Expose to inline onclick handlers
+window.showUpgradeModal = showUpgradeModal;
+window.setUpgradeToggle = setUpgradeToggle;
+window.handleCheckout   = handleCheckout;
 
 init();

@@ -266,8 +266,30 @@ input, select, button { font-family:var(--sans); }
   content:''; position:absolute; top:0; left:0; right:0; height:1px;
   background:linear-gradient(90deg,transparent,var(--ba),transparent);
 }
+.modal-sm { max-width:440px; }
 .modal-md { max-width:520px; }
 .modal-lg { max-width:760px; }
+
+/* ── PLAN BADGES & UPGRADE UI ── */
+.plan-badge { padding:2px 9px; border-radius:20px; font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.08em; }
+.plan-badge.free    { background:rgba(255,255,255,.06); color:var(--muted); }
+.plan-badge.premium { background:rgba(20,240,168,.15); color:var(--accent); }
+.plan-lock { background:var(--card); border:1px dashed var(--border); border-radius:10px;
+  padding:14px 16px; font-size:13px; color:var(--muted); text-align:center; margin-bottom:16px; }
+.plan-lock a { color:var(--accent); cursor:pointer; font-weight:600; }
+.upgrade-toggle { display:flex; gap:4px; background:var(--card); border:1px solid var(--border);
+  border-radius:10px; padding:3px; width:fit-content; margin:0 auto 20px; }
+.upgrade-toggle button { padding:7px 18px; border:none; background:transparent;
+  color:var(--muted); font-size:13px; font-weight:500; border-radius:8px; cursor:pointer;
+  transition:all .15s; }
+.upgrade-toggle button.active { background:var(--ba); color:var(--accent); font-weight:600; }
+.upgrade-price-card { background:var(--card); border:1px solid var(--ba); border-radius:16px;
+  padding:24px; margin-bottom:16px; text-align:center; }
+.upgrade-amount { font-size:36px; font-weight:700; color:var(--accent); line-height:1; }
+.upgrade-amount span { font-size:15px; font-weight:400; color:var(--muted); }
+.settings-plan-row { display:flex; align-items:center; justify-content:space-between;
+  padding:10px 0; border-bottom:1px solid var(--border); margin-bottom:16px; font-size:13px; }
 .modal-header {
   display:flex; align-items:center; justify-content:space-between;
   padding:20px 24px; border-bottom:1px solid var(--border);
@@ -641,6 +663,14 @@ tr.classed td:first-child { padding-left:28px; }
     </div>
     <div class="modal-body">
 
+      <div class="settings-plan-row">
+        <span>Plan</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="plan-badge free" id="plan-badge">Free</span>
+          <button class="btn btn-ghost" id="plan-action-btn" style="font-size:12px">Upgrade to Premium</button>
+        </div>
+      </div>
+
       <div class="set-section">
         <h3>Display Currency</h3>
         <div style="display:flex;gap:8px">
@@ -680,9 +710,14 @@ tr.classed td:first-child { padding-left:28px; }
 
       <div class="set-section">
         <h3>Sub-Classes</h3>
-        <div id="classes-section"></div>
-        <div class="set-row">
-          <button class="btn btn-ghost" id="add-class" style="font-size:12px">+ Add Sub-Class</button>
+        <div class="plan-lock" id="classes-lock" style="display:none">
+          Sub-classes are a Premium feature. <a onclick="showUpgradeModal('subclass')">Upgrade →</a>
+        </div>
+        <div id="classes-section-wrap">
+          <div id="classes-section"></div>
+          <div class="set-row">
+            <button class="btn btn-ghost" id="add-class" style="font-size:12px">+ Add Sub-Class</button>
+          </div>
         </div>
       </div>
 
@@ -759,6 +794,35 @@ tr.classed td:first-child { padding-left:28px; }
     </div>
     <div class="modal-body" id="stk-modal-body">
       <div class="spinner-wrap"><div class="spinner"></div>Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Upgrade Modal -->
+<div class="overlay" id="ov-upgrade">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Upgrade to Premium</h2>
+      <button class="btn btn-icon" data-close="ov-upgrade">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="upgrade-body" style="color:var(--muted);font-size:14px;margin-bottom:20px;line-height:1.6"></p>
+      <div class="upgrade-toggle">
+        <button class="active" id="upg-monthly" onclick="setUpgradeToggle('monthly')">Monthly</button>
+        <button id="upg-annual" onclick="setUpgradeToggle('annual')">Annual <span style="color:var(--accent);font-size:11px">Save 37%</span></button>
+      </div>
+      <div class="upgrade-price-card">
+        <div class="upgrade-amount" id="upg-price">$7<span>/month</span></div>
+        <div style="font-size:12px;color:var(--muted);margin:6px 0 18px" id="upg-billing">Billed monthly</div>
+        <ul style="list-style:none;text-align:left;font-size:13px;margin-bottom:20px;display:grid;gap:9px">
+          <li>✓ &nbsp;Unlimited portfolios</li>
+          <li>✓ &nbsp;Unlimited positions</li>
+          <li>✓ &nbsp;Sub-classes &amp; target weights</li>
+          <li>✓ &nbsp;All current and future features</li>
+        </ul>
+        <button class="btn btn-accent" style="width:100%;justify-content:center;padding:14px" id="btn-checkout" onclick="handleCheckout()">Upgrade to Premium</button>
+        <p style="font-size:11px;color:var(--muted);margin-top:10px">Cancel anytime · No lock-in · Data always yours</p>
+      </div>
     </div>
   </div>
 </div>
