@@ -16,13 +16,13 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ──── AUTH STATE OBSERVER ───────────────────────────────────────
 export function setupAuthObserver() {
   sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      window.location.href = '/dashboard.html';
+      return;
+    }
     const signOutBtn = document.getElementById('sign-out-btn');
-
-    // Show sign-out button if user is logged in
-    if (session && signOutBtn) {
-      signOutBtn.style.display = 'inline-block';
-    } else {
-      signOutBtn.style.display = 'none';
+    if (signOutBtn) {
+      signOutBtn.style.display = session ? 'inline-block' : 'none';
     }
   });
 }
@@ -74,7 +74,7 @@ export async function signInWithGoogle() {
   try {
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + '/dashboard.html' },
+      options: { redirectTo: window.location.origin + '/auth.html' },
     });
     if (error) throw error;
   } catch(err) {
