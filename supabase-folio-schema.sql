@@ -168,3 +168,37 @@ CREATE POLICY "user_plans_select" ON folio.user_plans
   FOR SELECT USING (user_id = auth.uid());
 
 -- Inserts/updates only via service role (Stripe webhook)
+
+-- =============================================================================
+-- Migration: Trade Lot Tracking — folio.trades table
+-- Run in Supabase SQL Editor after the initial schema above
+-- =============================================================================
+
+CREATE TABLE folio.trades (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  folio_id   UUID        NOT NULL REFERENCES folio.portfolios(id) ON DELETE CASCADE,
+  symbol     TEXT        NOT NULL CHECK (char_length(symbol) BETWEEN 1 AND 10),
+  type       TEXT        NOT NULL CHECK (type IN ('buy', 'sell')),
+  shares     NUMERIC     NOT NULL CHECK (shares > 0),
+  price      NUMERIC     NOT NULL CHECK (price >= 0),
+  traded_at  DATE        NOT NULL,
+  note       TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_folio_trades_folio_symbol ON folio.trades(folio_id, symbol);
+CREATE INDEX idx_folio_trades_traded_at    ON folio.trades(traded_at DESC);
+
+ALTER TABLE folio.trades ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "trades_select" ON folio.trades
+  FOR SELECT TO authenticated
+  USING (folio.is_portfolio_owned_by_current_user(folio_id));
+
+CREATE POLICY "trades_insert" ON folio.trades
+  FOR INSERT TO authenticated
+  WITH CHECK (folio.is_portfolio_owned_by_current_user(folio_id));
+
+CREATE POLICY "trades_delete" ON folio.trades
+  FOR DELETE TO authenticated
+  USING (folio.is_portfolio_owned_by_current_user(folio_id));

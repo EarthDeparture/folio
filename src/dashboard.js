@@ -53,6 +53,10 @@ let portChartIsGain = true;
 let _calcTimer = null;
 let _rebTimer  = null;
 
+// Trade modal state
+let _tradeModalSymbol = null;
+let _tradeTimer       = null;
+
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
   '#5be8f0','#f0905b','#8af05b','#c05bf0','#f05b5b',
@@ -268,6 +272,24 @@ const DB = {
       .eq('folio_id', folioId)
       .eq('symbol', symbol);
     if (error) { handleDbError(error, `deletePosition ${symbol}`); throw error; }
+  },
+
+  async insertTrade(folioId, symbol, type, shares, price, tradedAt) {
+    const { data, error } = await S.db
+      .from('trades')
+      .insert({ folio_id: folioId, symbol: symbol.toUpperCase(), type, shares, price, traded_at: tradedAt })
+      .select().single();
+    if (error) { handleDbError(error, `insertTrade ${symbol}`); throw error; }
+    return data;
+  },
+
+  async listTrades(folioId, symbol) {
+    const { data, error } = await S.db
+      .from('trades').select('*')
+      .eq('folio_id', folioId).eq('symbol', symbol.toUpperCase())
+      .order('traded_at', { ascending: false }).limit(50);
+    if (error) { handleDbError(error, `listTrades ${symbol}`); throw error; }
+    return data || [];
   },
 
   async getQuote(symbol, maxAgeMs) {
@@ -677,6 +699,12 @@ function renderPositionRow(h, isClassed) {
         <div class="mono" style="font-size:10px;color:var(--muted)">${f.$(h.val != null ? h.val - h.cost : null)}</div>
       </td>
       <td class="mono col-divyield" style="text-align:right;color:var(--muted)">${allocCell}</td>
+      <td style="text-align:right;padding-right:4px">
+        <button class="btn btn-ghost"
+          style="font-size:11px;padding:4px 8px;white-space:nowrap"
+          onclick="event.stopPropagation();showTradeModal('${h.symbol}')"
+          title="Log a buy or sell">+ Trade</button>
+      </td>
     </tr>`;
 }
 
@@ -685,7 +713,7 @@ function renderHoldings() {
   if (!tbody) return;
   const rows = Port.rows();
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No positions yet. Add them in Settings (⚙).</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">No positions yet. Add them in Settings (⚙).</td></tr>`;
     return;
   }
 
@@ -705,7 +733,7 @@ function renderHoldings() {
     const html       = [];
 
     if (ungrouped.length) {
-      html.push(`<tr class="class-header-row"><td colspan="8"><span class="class-name" style="color:var(--muted)">Ungrouped</span></td></tr>`);
+      html.push(`<tr class="class-header-row"><td colspan="9"><span class="class-name" style="color:var(--muted)">Ungrouped</span></td></tr>`);
       html.push(...ungrouped.map(h => renderPositionRow(h, false)));
     }
 
@@ -725,7 +753,7 @@ function renderHoldings() {
         : '';
       html.push(`
         <tr class="class-header-row">
-          <td colspan="8">
+          <td colspan="9">
             <span class="class-badge" style="background:${cls.color || '#5a6680'}"></span>
             <span class="class-name">${cls.name}</span>
             <span class="mono" style="margin-left:16px;font-size:12px">${f.$(clsVal)}</span>
@@ -817,7 +845,9 @@ async function openStock(symbol) {
       <div id="stk-loading" class="spinner-wrap" style="position:absolute;inset:0"><div class="spinner"></div></div>
     </div>
     <div class="sec-title">Dividend History</div>
-    <div id="stk-divs"><div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div></div>`;
+    <div id="stk-divs"><div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div></div>
+    <div class="sec-title" style="margin-top:20px">Trade History</div>
+    <div id="stk-trades"><div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div></div>`;
 
   // Load chart — reuses cached history if available, no extra API call
   try {
@@ -849,6 +879,195 @@ async function openStock(symbol) {
   } catch(e) {
     const el = $('stk-divs');
     if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">${e.message.includes('limit') ? 'API rate limit reached' : `Could not load dividends: ${e.message}`}</p>`;
+  }
+
+  // Load trade history
+  try {
+    const trades = await DB.listTrades(S.currentFolioId, symbol);
+    const el = $('stk-trades');
+    if (!el) return;
+    if (!trades.length) {
+      el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No trades logged yet.</p>`;
+    } else {
+      el.innerHTML = `<div class="div-list">${trades.map(t => {
+        const total = t.shares * t.price;
+        return `<div class="div-row">
+          <span class="dr">${f.date(t.traded_at)}</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span class="badge ${t.type === 'buy' ? 'gain' : 'loss'}" style="font-size:10px">${t.type.toUpperCase()}</span>
+            <span>${f.num(t.shares, t.shares % 1 === 0 ? 0 : 4)} sh @ ${f.$(t.price)}</span>
+          </span>
+          <span class="da">${f.$(total)}</span>
+        </div>`;
+      }).join('')}</div>`;
+    }
+  } catch(e) {
+    const el = $('stk-trades');
+    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px">Could not load trade history.</p>`;
+  }
+}
+
+// ── TRADE MODAL ────────────────────────────────────────────────
+function showTradeModal(symbol) {
+  _tradeModalSymbol = symbol;
+  $('trade-modal-sym').textContent = symbol;
+
+  // Default type to buy
+  _setTradeType('buy');
+
+  // Default date to today
+  const today = new Date();
+  const yyyy  = today.getFullYear();
+  const mm    = String(today.getMonth() + 1).padStart(2, '0');
+  const dd    = String(today.getDate()).padStart(2, '0');
+  $('trade-date').value = `${yyyy}-${mm}-${dd}`;
+
+  // Pre-fill price from cached quote if available
+  const px = S.quotes[symbol]?.price;
+  $('trade-price').value = px != null ? px : '';
+
+  // Clear shares and preview
+  $('trade-shares').value = '';
+  $('trade-preview').innerHTML = '<span style="color:var(--muted)">Enter shares and price to see preview.</span>';
+
+  $('ov-trade').classList.add('open');
+  setTimeout(() => $('trade-shares').focus(), 50);
+}
+
+function _setTradeType(type) {
+  const buyBtn  = $('trade-type-buy');
+  const sellBtn = $('trade-type-sell');
+  buyBtn.dataset.active  = type === 'buy'  ? '1' : '';
+  sellBtn.dataset.active = type === 'sell' ? '1' : '';
+  buyBtn.className  = `btn ${type === 'buy'  ? 'btn-accent' : 'btn-ghost'}`;
+  sellBtn.className = `btn ${type === 'sell' ? 'btn-accent' : 'btn-ghost'}`;
+  buyBtn.style.flex  = '1';
+  buyBtn.style.justifyContent  = 'center';
+  sellBtn.style.flex = '1';
+  sellBtn.style.justifyContent = 'center';
+  _updateTradePreview();
+}
+
+function _getTradeType() {
+  return $('trade-type-buy').dataset.active === '1' ? 'buy' : 'sell';
+}
+
+function _updateTradePreview() {
+  const el          = $('trade-preview');
+  if (!el) return;
+  const type        = _getTradeType();
+  const tradeShares = parseFloat($('trade-shares').value);
+  const tradePrice  = parseFloat($('trade-price').value);
+
+  if (!tradeShares || tradeShares <= 0 || isNaN(tradePrice) || tradePrice < 0 || !$('trade-date').value) {
+    el.innerHTML = '<span style="color:var(--muted)">Enter shares and price to see preview.</span>';
+    return;
+  }
+
+  const pos = S.positions.find(p => p.symbol === _tradeModalSymbol);
+
+  if (type === 'buy') {
+    const oldShares  = pos?.shares ?? 0;
+    const newShares  = oldShares + tradeShares;
+    const newAvgCost = oldShares > 0
+      ? ((oldShares * pos.avg_cost) + (tradeShares * tradePrice)) / newShares
+      : tradePrice;
+    const total = tradeShares * tradePrice;
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between"><span>Trade Total</span><span class="mono">${f.$(total)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>New Shares</span><span class="mono">${f.num(newShares, newShares % 1 === 0 ? 0 : 4)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>New Avg Cost</span><span class="mono" style="color:var(--accent)">${f.$(newAvgCost)}</span></div>
+      </div>`;
+  } else {
+    const oldShares = pos?.shares ?? 0;
+    if (tradeShares > oldShares + 0.0001) {
+      el.innerHTML = `<span style="color:var(--loss)">Cannot sell more shares than held (${f.num(oldShares, oldShares % 1 === 0 ? 0 : 4)} sh).</span>`;
+      return;
+    }
+    const proceeds  = tradeShares * tradePrice;
+    const costBasis = tradeShares * (pos?.avg_cost ?? 0);
+    const realizedGL = proceeds - costBasis;
+    const newShares  = oldShares - tradeShares;
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between"><span>Proceeds</span><span class="mono">${f.$(proceeds)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Realized G/L</span><span class="mono ${sign(realizedGL)}">${f.$(realizedGL)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Remaining Shares</span><span class="mono" style="color:${newShares <= 0.0001 ? 'var(--loss)' : 'var(--text)'}">${newShares <= 0.0001 ? 'Closes position' : f.num(newShares, newShares % 1 === 0 ? 0 : 4)}</span></div>
+      </div>`;
+  }
+}
+
+async function submitTrade() {
+  const type        = _getTradeType();
+  const tradeShares = parseFloat($('trade-shares').value);
+  const tradePrice  = parseFloat($('trade-price').value);
+  const tradedAt    = $('trade-date').value;
+  const symbol      = _tradeModalSymbol;
+
+  if (!tradeShares || tradeShares <= 0) { toast('Enter a valid number of shares.', 'error'); return; }
+  if (isNaN(tradePrice) || tradePrice < 0) { toast('Enter a valid price.', 'error'); return; }
+  if (!tradedAt) { toast('Select a trade date.', 'error'); return; }
+
+  const pos = S.positions.find(p => p.symbol === symbol);
+
+  if (type === 'sell') {
+    const oldShares = pos?.shares ?? 0;
+    if (tradeShares > oldShares + 0.0001) {
+      toast(`Cannot sell more shares than held (${f.num(oldShares, oldShares % 1 === 0 ? 0 : 4)} sh).`, 'error');
+      return;
+    }
+  }
+
+  if (type === 'buy' && !pos) {
+    if (!isPremium() && S.positions.length >= FREE_LIMITS.positions) {
+      showUpgradeModal('position');
+      return;
+    }
+  }
+
+  const btn = $('btn-submit-trade');
+  btn.disabled = true;
+  btn.textContent = 'Logging…';
+
+  try {
+    await DB.insertTrade(S.currentFolioId, symbol, type, tradeShares, tradePrice, tradedAt);
+
+    if (type === 'buy') {
+      const oldShares  = pos?.shares ?? 0;
+      const newShares  = oldShares + tradeShares;
+      const newAvgCost = oldShares > 0
+        ? ((oldShares * pos.avg_cost) + (tradeShares * tradePrice)) / newShares
+        : tradePrice;
+      await DB.upsertPosition(
+        S.currentFolioId, symbol, newShares, newAvgCost,
+        pos?.color || null, pos?.target_weight ?? 0, pos?.class_id || null
+      );
+      toast(`Bought ${f.num(tradeShares, tradeShares % 1 === 0 ? 0 : 4)} sh of ${symbol}`);
+    } else {
+      const oldShares = pos?.shares ?? 0;
+      const newShares = oldShares - tradeShares;
+      if (newShares <= 0.0001) {
+        await DB.deletePosition(S.currentFolioId, symbol);
+        toast(`Closed position: ${symbol}`);
+      } else {
+        await DB.upsertPosition(
+          S.currentFolioId, symbol, newShares, pos.avg_cost,
+          pos?.color || null, pos?.target_weight ?? 0, pos?.class_id || null
+        );
+        toast(`Sold ${f.num(tradeShares, tradeShares % 1 === 0 ? 0 : 4)} sh of ${symbol}`);
+      }
+    }
+
+    S.positions = await DB.listPositions(S.currentFolioId);
+    closeOverlay('ov-trade');
+    renderDash();
+    renderHoldings();
+  } catch(e) {
+    // Error already surfaced by DB layer
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Log Trade';
   }
 }
 
@@ -1562,7 +1781,7 @@ async function loadAll() {
     // Non-fatal: fall through to API path
   }
 
-  if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="9"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
 
   try {
     const qs = await API.quotes(syms);
@@ -1576,7 +1795,7 @@ async function loadAll() {
     if (S.showCombined) loadAllPositions().then(() => renderDash());
   } catch(e) {
     if (tbody) tbody.innerHTML = `
-      <tr><td colspan="8">
+      <tr><td colspan="9">
         <div style="text-align:center;padding:40px">
           <div style="font-size:32px;margin-bottom:12px">⚠️</div>
           <div style="font-weight:600;margin-bottom:6px">Failed to load quotes</div>
@@ -1685,6 +1904,14 @@ function initEvents() {
 
   $('reb-amount')?.addEventListener('input', scheduleRebalance);
 
+  ['trade-shares', 'trade-price', 'trade-date'].forEach(id =>
+    $(id)?.addEventListener('input', () => {
+      clearTimeout(_tradeTimer);
+      _tradeTimer = setTimeout(_updateTradePreview, 200);
+    })
+  );
+  $('btn-submit-trade')?.addEventListener('click', submitTrade);
+
   $('btn-calc')?.addEventListener('click', runCalc);
   ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id =>
     $(id)?.addEventListener('input', scheduleCalc)
@@ -1759,5 +1986,7 @@ async function init() {
 window.showUpgradeModal = showUpgradeModal;
 window.setUpgradeToggle = setUpgradeToggle;
 window.handleCheckout   = handleCheckout;
+window.showTradeModal   = showTradeModal;
+window._setTradeType    = _setTradeType;
 
 init();
