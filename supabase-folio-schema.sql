@@ -199,6 +199,11 @@ CREATE POLICY "trades_insert" ON folio.trades
   FOR INSERT TO authenticated
   WITH CHECK (folio.is_portfolio_owned_by_current_user(folio_id));
 
+CREATE POLICY "trades_update" ON folio.trades
+  FOR UPDATE TO authenticated
+  USING (folio.is_portfolio_owned_by_current_user(folio_id))
+  WITH CHECK (folio.is_portfolio_owned_by_current_user(folio_id));
+
 CREATE POLICY "trades_delete" ON folio.trades
   FOR DELETE TO authenticated
   USING (folio.is_portfolio_owned_by_current_user(folio_id));

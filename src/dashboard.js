@@ -56,6 +56,7 @@ let _rebTimer  = null;
 // Trade modal state
 let _tradeModalSymbol = null;
 let _tradeTimer       = null;
+let _editingTradeId   = null;
 
 const COLORS = [
   '#14f0a8','#5b8af0','#f05b8a','#f0c05b','#a05bf0',
@@ -290,6 +291,50 @@ const DB = {
       .order('traded_at', { ascending: false }).limit(50);
     if (error) { handleDbError(error, `listTrades ${symbol}`); throw error; }
     return data || [];
+  },
+
+  async listTradesAsc(folioId, symbol) {
+    const { data, error } = await S.db
+      .from('trades').select('*')
+      .eq('folio_id', folioId).eq('symbol', symbol.toUpperCase())
+      .order('traded_at', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) { handleDbError(error, `listTradesAsc ${symbol}`); throw error; }
+    return data || [];
+  },
+
+  async updateTrade(id, type, shares, price, tradedAt) {
+    const { error } = await S.db
+      .from('trades').update({ type, shares, price, traded_at: tradedAt }).eq('id', id);
+    if (error) { handleDbError(error, `updateTrade ${id}`); throw error; }
+  },
+
+  async deleteTrade(id) {
+    const { error } = await S.db.from('trades').delete().eq('id', id);
+    if (error) { handleDbError(error, `deleteTrade ${id}`); throw error; }
+  },
+
+  async recalcPositionFromTrades(folioId, symbol) {
+    const trades = await this.listTradesAsc(folioId, symbol);
+    const pos    = S.positions.find(p => p.symbol === symbol);
+    let shares = 0, avgCost = 0;
+    for (const t of trades) {
+      if (t.type === 'buy') {
+        const newShares = shares + Number(t.shares);
+        avgCost = shares > 0
+          ? ((shares * avgCost) + (Number(t.shares) * Number(t.price))) / newShares
+          : Number(t.price);
+        shares = newShares;
+      } else {
+        shares = Math.max(0, shares - Number(t.shares));
+      }
+    }
+    if (shares <= 0.0001) {
+      try { await this.deletePosition(folioId, symbol); } catch(e) { /* already gone */ }
+    } else {
+      await this.upsertPosition(folioId, symbol, shares, avgCost,
+        pos?.color || null, pos?.target_weight ?? 0, pos?.class_id || null);
+    }
   },
 
   async getQuote(symbol, maxAgeMs) {
@@ -886,49 +931,76 @@ async function openStock(symbol) {
     const trades = await DB.listTrades(S.currentFolioId, symbol);
     const el = $('stk-trades');
     if (!el) return;
-    if (!trades.length) {
-      el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No trades logged yet.</p>`;
-    } else {
-      el.innerHTML = `<div class="div-list">${trades.map(t => {
-        const total = t.shares * t.price;
-        return `<div class="div-row">
-          <span class="dr">${f.date(t.traded_at)}</span>
-          <span style="display:flex;align-items:center;gap:6px">
-            <span class="badge ${t.type === 'buy' ? 'gain' : 'loss'}" style="font-size:10px">${t.type.toUpperCase()}</span>
-            <span>${f.num(t.shares, t.shares % 1 === 0 ? 0 : 4)} sh @ ${f.$(t.price)}</span>
-          </span>
-          <span class="da">${f.$(total)}</span>
-        </div>`;
-      }).join('')}</div>`;
-    }
+    renderTradeHistory(el, trades, symbol);
   } catch(e) {
     const el = $('stk-trades');
     if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px">Could not load trade history.</p>`;
   }
 }
 
+function renderTradeHistory(el, trades, symbol) {
+  if (!trades.length) {
+    el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No trades logged yet.</p>`;
+    return;
+  }
+  el.innerHTML = `<div class="div-list">${trades.map(t => {
+    const total = Number(t.shares) * Number(t.price);
+    return `<div class="div-row" style="gap:8px">
+      <span class="dr">${f.date(t.traded_at)}</span>
+      <span style="display:flex;align-items:center;gap:6px">
+        <span class="badge ${t.type === 'buy' ? 'gain' : 'loss'}" style="font-size:10px">${t.type.toUpperCase()}</span>
+        <span>${f.num(Number(t.shares), Number(t.shares) % 1 === 0 ? 0 : 4)} sh @ ${f.$(Number(t.price))}</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:6px;margin-left:auto">
+        <span class="da">${f.$(total)}</span>
+        <button class="btn btn-ghost trade-edit-btn" style="font-size:10px;padding:3px 7px" data-id="${t.id}">Edit</button>
+        <button class="btn btn-ghost trade-del-btn" style="font-size:10px;padding:3px 7px;color:var(--loss);border-color:rgba(240,72,110,.3)" data-id="${t.id}">✕</button>
+      </span>
+    </div>`;
+  }).join('')}</div>`;
+
+  // Store trade data on the element for event handlers
+  el._tradeData = Object.fromEntries(trades.map(t => [t.id, t]));
+  el._symbol    = symbol;
+
+  el.querySelectorAll('.trade-edit-btn').forEach(btn =>
+    btn.addEventListener('click', () => showTradeModal(el._symbol, el._tradeData[btn.dataset.id]))
+  );
+  el.querySelectorAll('.trade-del-btn').forEach(btn =>
+    btn.addEventListener('click', () => deleteTradeAndRecalc(btn.dataset.id, el._symbol))
+  );
+}
+
 // ── TRADE MODAL ────────────────────────────────────────────────
-function showTradeModal(symbol) {
+function showTradeModal(symbol, trade = null) {
   _tradeModalSymbol = symbol;
+  _editingTradeId   = trade ? trade.id : null;
+
   $('trade-modal-sym').textContent = symbol;
 
-  // Default type to buy
-  _setTradeType('buy');
+  const submitBtn = $('btn-submit-trade');
+  submitBtn.textContent = trade ? 'Update Trade' : 'Log Trade';
 
-  // Default date to today
-  const today = new Date();
-  const yyyy  = today.getFullYear();
-  const mm    = String(today.getMonth() + 1).padStart(2, '0');
-  const dd    = String(today.getDate()).padStart(2, '0');
-  $('trade-date').value = `${yyyy}-${mm}-${dd}`;
+  if (trade) {
+    _setTradeType(trade.type);
+    $('trade-shares').value = trade.shares;
+    $('trade-price').value  = trade.price;
+    $('trade-date').value   = trade.traded_at;
+    $('trade-preview').innerHTML = '<span style="color:var(--muted)">Position will be fully recalculated from all trades after saving.</span>';
+  } else {
+    _setTradeType('buy');
 
-  // Pre-fill price from cached quote if available
-  const px = S.quotes[symbol]?.price;
-  $('trade-price').value = px != null ? px : '';
+    const today = new Date();
+    const yyyy  = today.getFullYear();
+    const mm    = String(today.getMonth() + 1).padStart(2, '0');
+    const dd    = String(today.getDate()).padStart(2, '0');
+    $('trade-date').value = `${yyyy}-${mm}-${dd}`;
 
-  // Clear shares and preview
-  $('trade-shares').value = '';
-  $('trade-preview').innerHTML = '<span style="color:var(--muted)">Enter shares and price to see preview.</span>';
+    const px = S.quotes[symbol]?.price;
+    $('trade-price').value  = px != null ? px : '';
+    $('trade-shares').value = '';
+    $('trade-preview').innerHTML = '<span style="color:var(--muted)">Enter shares and price to see preview.</span>';
+  }
 
   $('ov-trade').classList.add('open');
   setTimeout(() => $('trade-shares').focus(), 50);
@@ -955,6 +1027,10 @@ function _getTradeType() {
 function _updateTradePreview() {
   const el          = $('trade-preview');
   if (!el) return;
+  if (_editingTradeId) {
+    el.innerHTML = '<span style="color:var(--muted)">Position will be fully recalculated from all trades after saving.</span>';
+    return;
+  }
   const type        = _getTradeType();
   const tradeShares = parseFloat($('trade-shares').value);
   const tradePrice  = parseFloat($('trade-price').value);
@@ -1004,6 +1080,7 @@ async function submitTrade() {
   const tradePrice  = parseFloat($('trade-price').value);
   const tradedAt    = $('trade-date').value;
   const symbol      = _tradeModalSymbol;
+  const isEdit      = !!_editingTradeId;
 
   if (!tradeShares || tradeShares <= 0) { toast('Enter a valid number of shares.', 'error'); return; }
   if (isNaN(tradePrice) || tradePrice < 0) { toast('Enter a valid price.', 'error'); return; }
@@ -1011,7 +1088,8 @@ async function submitTrade() {
 
   const pos = S.positions.find(p => p.symbol === symbol);
 
-  if (type === 'sell') {
+  // Sell validation only for new trades (edit recalcs from scratch)
+  if (!isEdit && type === 'sell') {
     const oldShares = pos?.shares ?? 0;
     if (tradeShares > oldShares + 0.0001) {
       toast(`Cannot sell more shares than held (${f.num(oldShares, oldShares % 1 === 0 ? 0 : 4)} sh).`, 'error');
@@ -1019,7 +1097,7 @@ async function submitTrade() {
     }
   }
 
-  if (type === 'buy' && !pos) {
+  if (!isEdit && type === 'buy' && !pos) {
     if (!isPremium() && S.positions.length >= FREE_LIMITS.positions) {
       showUpgradeModal('position');
       return;
@@ -1028,34 +1106,40 @@ async function submitTrade() {
 
   const btn = $('btn-submit-trade');
   btn.disabled = true;
-  btn.textContent = 'Logging…';
+  btn.textContent = isEdit ? 'Saving…' : 'Logging…';
 
   try {
-    await DB.insertTrade(S.currentFolioId, symbol, type, tradeShares, tradePrice, tradedAt);
-
-    if (type === 'buy') {
-      const oldShares  = pos?.shares ?? 0;
-      const newShares  = oldShares + tradeShares;
-      const newAvgCost = oldShares > 0
-        ? ((oldShares * pos.avg_cost) + (tradeShares * tradePrice)) / newShares
-        : tradePrice;
-      await DB.upsertPosition(
-        S.currentFolioId, symbol, newShares, newAvgCost,
-        pos?.color || null, pos?.target_weight ?? 0, pos?.class_id || null
-      );
-      toast(`Bought ${f.num(tradeShares, tradeShares % 1 === 0 ? 0 : 4)} sh of ${symbol}`);
+    if (isEdit) {
+      await DB.updateTrade(_editingTradeId, type, tradeShares, tradePrice, tradedAt);
+      await DB.recalcPositionFromTrades(S.currentFolioId, symbol);
+      toast(`Trade updated for ${symbol}`);
     } else {
-      const oldShares = pos?.shares ?? 0;
-      const newShares = oldShares - tradeShares;
-      if (newShares <= 0.0001) {
-        await DB.deletePosition(S.currentFolioId, symbol);
-        toast(`Closed position: ${symbol}`);
-      } else {
+      await DB.insertTrade(S.currentFolioId, symbol, type, tradeShares, tradePrice, tradedAt);
+
+      if (type === 'buy') {
+        const oldShares  = pos?.shares ?? 0;
+        const newShares  = oldShares + tradeShares;
+        const newAvgCost = oldShares > 0
+          ? ((oldShares * pos.avg_cost) + (tradeShares * tradePrice)) / newShares
+          : tradePrice;
         await DB.upsertPosition(
-          S.currentFolioId, symbol, newShares, pos.avg_cost,
+          S.currentFolioId, symbol, newShares, newAvgCost,
           pos?.color || null, pos?.target_weight ?? 0, pos?.class_id || null
         );
-        toast(`Sold ${f.num(tradeShares, tradeShares % 1 === 0 ? 0 : 4)} sh of ${symbol}`);
+        toast(`Bought ${f.num(tradeShares, tradeShares % 1 === 0 ? 0 : 4)} sh of ${symbol}`);
+      } else {
+        const oldShares = pos?.shares ?? 0;
+        const newShares = oldShares - tradeShares;
+        if (newShares <= 0.0001) {
+          await DB.deletePosition(S.currentFolioId, symbol);
+          toast(`Closed position: ${symbol}`);
+        } else {
+          await DB.upsertPosition(
+            S.currentFolioId, symbol, newShares, pos.avg_cost,
+            pos?.color || null, pos?.target_weight ?? 0, pos?.class_id || null
+          );
+          toast(`Sold ${f.num(tradeShares, tradeShares % 1 === 0 ? 0 : 4)} sh of ${symbol}`);
+        }
       }
     }
 
@@ -1067,7 +1151,27 @@ async function submitTrade() {
     // Error already surfaced by DB layer
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Log Trade';
+    btn.textContent = isEdit ? 'Update Trade' : 'Log Trade';
+  }
+}
+
+async function deleteTradeAndRecalc(tradeId, symbol) {
+  if (!confirm(`Delete this trade? Your position will be recalculated from remaining trades.`)) return;
+  try {
+    await DB.deleteTrade(tradeId);
+    await DB.recalcPositionFromTrades(S.currentFolioId, symbol);
+    S.positions = await DB.listPositions(S.currentFolioId);
+    renderDash();
+    renderHoldings();
+    toast(`Trade deleted — ${symbol} position recalculated`);
+    // Refresh the trade history section if stock modal is still open
+    const tradesEl = $('stk-trades');
+    if (tradesEl) {
+      const trades = await DB.listTrades(S.currentFolioId, symbol);
+      renderTradeHistory(tradesEl, trades, symbol);
+    }
+  } catch(e) {
+    // Error already surfaced by DB layer
   }
 }
 
