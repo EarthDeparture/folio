@@ -1853,9 +1853,8 @@ async function loadAll() {
   const syms = S.positions.map(h => h.symbol);
   if (!syms.length) return;
 
-  const tbody = $('holdings-body');
-
-  // Step 1: try shared DB cache for all symbols (fast, single query)
+  // Step 1: DB cache — single fast query, renders immediately with last-known prices
+  let hasCached = false;
   try {
     const { data: rows } = await S.db
       .from('quotes')
@@ -1878,6 +1877,7 @@ async function loadAll() {
         };
         Cache.set('q1_' + r.symbol, S.quotes[r.symbol], CACHE_Q);
       });
+      hasCached = true;
       renderDash();
       renderHoldings();
     }
@@ -1885,12 +1885,18 @@ async function loadAll() {
     // Non-fatal: fall through to API path
   }
 
-  if (tbody) tbody.innerHTML = `<tr><td colspan="9"><div class="spinner-wrap"><div class="spinner"></div>Fetching quotes…</div></td></tr>`;
-
+  // Step 2: fresh quotes from API — progressive per-batch render, never wipes cached data
   try {
-    const qs = await API.quotes(syms);
-    qs.forEach(q => { S.quotes[q.symbol] = q; });
-    renderDash(); renderHoldings();
+    for (let i = 0; i < syms.length; i += 5) {
+      const batch = await Promise.all(
+        syms.slice(i, i + 5).map(sym =>
+          API._oneQuote(sym).catch(e => { console.error(`[DIVIDND] Quote failed ${sym}:`, e.message); return null; })
+        )
+      );
+      batch.filter(Boolean).forEach(q => { S.quotes[q.symbol] = q; });
+      renderDash(); renderHoldings();
+      if (i + 5 < syms.length) await sleep(12000);
+    }
     const total = Port.value();
     if (total > 0) $('c-start').value = Math.round(total);
     runCalc();
@@ -1898,15 +1904,19 @@ async function loadAll() {
     if (document.querySelector('#tab-rebalance.active')) renderRebalance();
     if (S.showCombined) loadAllPositions().then(() => renderDash());
   } catch(e) {
-    if (tbody) tbody.innerHTML = `
-      <tr><td colspan="9">
-        <div style="text-align:center;padding:40px">
-          <div style="font-size:32px;margin-bottom:12px">⚠️</div>
-          <div style="font-weight:600;margin-bottom:6px">Failed to load quotes</div>
-          <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${e.message}</div>
-          <button class="btn btn-primary" onclick="loadAll()">Retry</button>
-        </div>
-      </td></tr>`;
+    // If we have cached data, prices are just stale — don't replace the table
+    if (!hasCached) {
+      const tbody = $('holdings-body');
+      if (tbody) tbody.innerHTML = `
+        <tr><td colspan="9">
+          <div style="text-align:center;padding:40px">
+            <div style="font-size:32px;margin-bottom:12px">⚠️</div>
+            <div style="font-weight:600;margin-bottom:6px">Failed to load quotes</div>
+            <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${e.message}</div>
+            <button class="btn btn-primary" onclick="loadAll()">Retry</button>
+          </div>
+        </td></tr>`;
+    }
     toast(e.message, 'error');
   }
 }
