@@ -407,6 +407,7 @@ input, select, button { font-family:var(--sans); }
 /* ── RESPONSIVE ── */
 @media (max-width:960px) {
   .stats-row { grid-template-columns:repeat(3,1fr); }
+  .stats-row-5 { grid-template-columns:repeat(3,1fr); }
   .chart-row { grid-template-columns:1fr; }
   .calc-grid { grid-template-columns:1fr; }
   .metrics { grid-template-columns:repeat(2,1fr); }
@@ -418,6 +419,12 @@ input, select, button { font-family:var(--sans); }
   .nav-tabs { display:none; }
   .folio-pill { max-width:150px; }
 }
+
+/* ── STATS TAB ── */
+.stats-tab { padding:28px 0 48px; }
+.stats-row-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px; }
+.bench-wrap { position:relative; height:280px; }
+.stats-note { font-size:10px; color:var(--muted); text-align:right; margin-top:8px; }
 
 /* ── SUB-CLASSES ── */
 .class-header-row td { background:rgba(255,255,255,0.03); border-top:1px solid var(--border); padding:10px 14px; }
@@ -449,6 +456,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
 
       <div class="nav-tabs">
         <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-btn" data-tab="stats">Stats</button>
         <button class="nav-btn" data-tab="calculator">Calculator</button>
         <button class="nav-btn" data-tab="rebalance">Rebalance</button>
       </div>
@@ -651,6 +659,79 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
       </div>
     </div>
   </div><!-- /tab-rebalance -->
+
+  <!-- STATS TAB -->
+  <div class="tab" id="tab-stats">
+    <div class="wrap stats-tab">
+
+      <!-- Empty state -->
+      <div id="stats-empty" style="display:none;text-align:center;padding:80px 0;color:var(--muted)">
+        <div style="font-size:40px;margin-bottom:12px">📊</div>
+        <div style="font-weight:600;font-size:15px;margin-bottom:6px">No positions yet</div>
+        <div style="font-size:13px">Add positions to see performance stats.</div>
+      </div>
+
+      <div id="stats-content">
+
+        <!-- Stat cards -->
+        <div class="stats-row-5">
+          <div class="sc">
+            <div class="sc-lbl">Total Return</div>
+            <div class="sc-val c-muted" id="stat-total-pct">—</div>
+            <div class="sc-sub" id="stat-total-dol">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl" id="stat-period-label">YTD Return</div>
+            <div class="sc-val c-muted" id="stat-period-pct">—</div>
+            <div class="sc-sub" id="stat-period-dol">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">vs S&amp;P 500</div>
+            <div class="sc-val c-muted" id="stat-vs-spy">—</div>
+            <div class="sc-sub" id="stat-vs-spy-sub">Loading…</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Best Position</div>
+            <div class="sc-val c-muted" id="stat-best-sym">—</div>
+            <div class="sc-sub" id="stat-best-ret">—</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Worst Position</div>
+            <div class="sc-val c-muted" id="stat-worst-sym">—</div>
+            <div class="sc-sub" id="stat-worst-ret">—</div>
+          </div>
+        </div>
+
+        <!-- Benchmark chart -->
+        <div class="chart-card" style="margin-bottom:20px">
+          <div class="chart-header">
+            <div class="chart-title">Portfolio vs S&amp;P 500</div>
+            <div class="period-btns">
+              <button class="stats-period-btn period-btn active" data-p="YTD">YTD</button>
+              <button class="stats-period-btn period-btn" data-p="1M">1M</button>
+              <button class="stats-period-btn period-btn" data-p="3M">3M</button>
+              <button class="stats-period-btn period-btn" data-p="6M">6M</button>
+              <button class="stats-period-btn period-btn" data-p="1Y">1Y</button>
+            </div>
+          </div>
+          <div class="bench-wrap">
+            <canvas id="c-bench"></canvas>
+            <div id="bench-loading" class="spinner-wrap" style="position:absolute;inset:0"><div class="spinner"></div></div>
+          </div>
+          <div class="stats-note">Based on current share counts × historical closes. SPY used as S&amp;P 500 proxy.</div>
+        </div>
+
+        <!-- Position returns -->
+        <div class="chart-card">
+          <div class="chart-title" style="margin-bottom:14px">Total Return by Position</div>
+          <div style="position:relative;min-height:120px">
+            <canvas id="c-pos-returns"></canvas>
+          </div>
+        </div>
+
+      </div><!-- /stats-content -->
+    </div>
+  </div><!-- /tab-stats -->
 
 </div><!-- /app-shell -->
 

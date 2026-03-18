@@ -29,7 +29,7 @@ const S = {
   sortCol:        'value',
   sortDir:        -1,
   drip:           true,
-  charts:         { port: null, alloc: null, calc: null, stock: null },
+  charts:         { port: null, alloc: null, calc: null, stock: null, bench: null, posReturns: null },
   currency:       localStorage.getItem('dividnd_currency') || 'USD',
   fxRate:         1.0,
   showCombined:   localStorage.getItem('dividnd_combined') === 'true',
@@ -52,6 +52,10 @@ let portChartIsGain = true;
 // Debounce handles for calculator and rebalance
 let _calcTimer = null;
 let _rebTimer  = null;
+
+// Stats tab state
+let _statsPeriod    = 'YTD';
+let _statsHistCache = null;   // { SYM: [{date,close},...], SPY: [...] }
 
 // Trade modal state
 let _tradeModalSymbol = null;
@@ -1175,6 +1179,186 @@ async function deleteTradeAndRecalc(tradeId, symbol) {
   }
 }
 
+// ── STATS TAB ──────────────────────────────────────────────────
+function _statsPeriodFrom(period) {
+  if (period === 'YTD') return `${new Date().getFullYear()}-01-01`;
+  const days = { '1M':30, '3M':90, '6M':182, '1Y':365 }[period] || 30;
+  return new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+}
+
+async function renderStats() {
+  const empty   = $('stats-empty');
+  const content = $('stats-content');
+
+  if (!S.positions.length) {
+    if (empty)   empty.style.display   = '';
+    if (content) content.style.display = 'none';
+    return;
+  }
+  if (empty)   empty.style.display   = 'none';
+  if (content) content.style.display = '';
+
+  const gc  = n => n >= 0 ? 'gain' : 'loss';
+  const upd = (id, text, cls) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls) { el.className = el.className.replace(/\bc-(gain|loss|muted)\b/, ''); el.classList.add('c-' + cls); }
+  };
+
+  // ── Stat cards — immediate (no API needed) ─────────────────
+  const value       = Port.value();
+  const cost        = Port.cost();
+  const totalRetPct = cost > 0 ? (value - cost) / cost * 100 : null;
+  const totalRetDol = value - cost;
+
+  upd('stat-total-pct', totalRetPct != null ? f.pct(totalRetPct) : '—', totalRetPct != null ? gc(totalRetDol) : 'muted');
+  upd('stat-total-dol', f.$(totalRetDol));
+
+  const withRet = S.positions.map(h => {
+    const px  = S.quotes[h.symbol]?.price ?? null;
+    const ret = px != null && h.avg_cost > 0 ? (px - h.avg_cost) / h.avg_cost * 100 : null;
+    return { ...h, px, ret };
+  }).filter(h => h.ret != null).sort((a, b) => b.ret - a.ret);
+
+  if (withRet.length) {
+    const best = withRet[0], worst = withRet[withRet.length - 1];
+    upd('stat-best-sym',  best.symbol,    gc(best.ret));
+    upd('stat-best-ret',  f.pct(best.ret));
+    upd('stat-worst-sym', worst.symbol,   gc(worst.ret));
+    upd('stat-worst-ret', f.pct(worst.ret));
+  }
+
+  // ── Position returns chart — immediate ─────────────────────
+  if (withRet.length) {
+    const sorted = [...withRet].reverse(); // worst → best for bottom-up bar
+    if (S.charts.posReturns) { S.charts.posReturns.destroy(); S.charts.posReturns = null; }
+    const canvas = $('c-pos-returns');
+    if (canvas) {
+      canvas.parentElement.style.height = Math.max(160, sorted.length * 38) + 'px';
+      S.charts.posReturns = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: sorted.map(p => p.symbol),
+          datasets: [{ data: sorted.map(p => p.ret), backgroundColor: sorted.map(p => p.ret >= 0 ? 'rgba(20,240,168,.7)' : 'rgba(240,72,110,.7)'), borderRadius: 4 }],
+        },
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { ...TT, callbacks: { label: c => ` ${f.pct(c.parsed.x)}` } } },
+          scales: {
+            x: { grid: { color:'rgba(255,255,255,0.04)' }, ticks: { font:{size:9}, callback: v => f.pct(v,1) } },
+            y: { grid: { display:false }, ticks: { font:{size:11, weight:'600'} } },
+          },
+        },
+      });
+    }
+  }
+
+  // ── Historical data + benchmark chart — async ───────────────
+  const loadingEl = $('bench-loading');
+  if (loadingEl) loadingEl.style.display = '';
+
+  try {
+    if (!_statsHistCache) {
+      const syms = S.positions.map(h => h.symbol);
+      const hist = {};
+      await Promise.all([...syms, 'SPY'].map(async sym => {
+        try { hist[sym] = await API.historical(sym); } catch(e) { hist[sym] = []; }
+      }));
+      _statsHistCache = hist;
+    }
+    _renderBenchChart();
+  } catch(e) {
+    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable: ${e.message}</span>`;
+  }
+}
+
+function _renderBenchChart() {
+  const allHist   = _statsHistCache;
+  const loadingEl = $('bench-loading');
+  if (!allHist) return;
+
+  const from = _statsPeriodFrom(_statsPeriod);
+
+  const spySorted = (allHist['SPY'] || [])
+    .filter(d => d.date >= from)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (spySorted.length < 2) {
+    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Not enough data for this period.</span>`;
+    return;
+  }
+
+  const dates = spySorted.map(d => d.date);
+
+  // Portfolio value per date using current share counts
+  const portVals = dates.map(date =>
+    S.positions.reduce((sum, h) => {
+      const entry = (allHist[h.symbol] || []).find(d => d.date === date);
+      return sum + (entry ? entry.close * h.shares : 0);
+    }, 0)
+  );
+  const spyVals = spySorted.map(d => d.close);
+
+  // Normalize: % return from first point in period (both start at 0)
+  const p0 = portVals[0] || 1, s0 = spyVals[0] || 1;
+  const portNorm = portVals.map(v => (v / p0 - 1) * 100);
+  const spyNorm  = spyVals.map(v => (v / s0 - 1) * 100);
+
+  // Period return stat cards (use historical closes for consistency with chart)
+  const portPeriodPct = portNorm[portNorm.length - 1];
+  const spyPeriodPct  = spyNorm[spyNorm.length - 1];
+  const portPeriodDol = portVals[portVals.length - 1] - portVals[0];
+  const vsSpyDiff     = portPeriodPct - spyPeriodPct;
+
+  const gc = n => n >= 0 ? 'gain' : 'loss';
+  const upd = (id, text, cls) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls) { el.className = el.className.replace(/\bc-(gain|loss|muted)\b/, ''); el.classList.add('c-' + cls); }
+  };
+
+  const periodLabel = _statsPeriod === 'YTD' ? 'YTD Return' : `${_statsPeriod} Return`;
+  $('stat-period-label') && ($('stat-period-label').textContent = periodLabel);
+  upd('stat-period-pct', f.pct(portPeriodPct), gc(portPeriodPct));
+  upd('stat-period-dol', f.$(portPeriodDol));
+  upd('stat-vs-spy',     (vsSpyDiff >= 0 ? '+' : '') + f.num(vsSpyDiff, 2) + 'pp', gc(vsSpyDiff));
+  $('stat-vs-spy-sub') && ($('stat-vs-spy-sub').textContent = `You: ${f.pct(portPeriodPct)} · SPY: ${f.pct(spyPeriodPct)}`);
+
+  // Build chart
+  const labels = dates.map(d =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' })
+  );
+  if (S.charts.bench) { S.charts.bench.destroy(); S.charts.bench = null; }
+  const canvas = $('c-bench');
+  if (canvas) {
+    S.charts.bench = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label:'Your Portfolio', data:portNorm, borderColor:portPeriodPct>=0?'#14f0a8':'#f0486e', borderWidth:2, pointRadius:0, fill:false, tension:.35 },
+          { label:'S&P 500 (SPY)', data:spyNorm,  borderColor:'rgba(90,102,128,.8)', borderWidth:1.5, pointRadius:0, fill:false, tension:.35, borderDash:[4,3] },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display:true, labels:{ boxWidth:12, font:{size:11}, color:'#5a6680', usePointStyle:true, pointStyleWidth:16 } },
+          tooltip: { ...TT, callbacks: { label: c => ` ${c.dataset.label}: ${f.pct(c.parsed.y)}` } },
+        },
+        scales: {
+          x: { grid:{display:false}, ticks:{maxTicksLimit:6, font:{size:9}} },
+          y: { position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{font:{size:9}, callback:v => f.pct(v,1)} },
+        },
+      },
+    });
+  }
+
+  if (loadingEl) loadingEl.style.display = 'none';
+}
+
 // ── CALCULATOR ─────────────────────────────────────────────────
 function runCalc() {
   const start   = parseFloat($('c-start').value)   || 0;
@@ -1837,6 +2021,7 @@ function closeOverlay(id) {
 
 // ── LOAD ALL ───────────────────────────────────────────────────
 async function loadAll() {
+  _statsHistCache = null; // invalidate on every portfolio load
   if (!S.currentFolioId) { S.classes = []; renderDash(); renderHoldings(); return; }
   try {
     S.positions = await DB.listPositions(S.currentFolioId);
@@ -1931,6 +2116,7 @@ function initEvents() {
       $('tab-' + btn.dataset.tab)?.classList.add('active');
       if (btn.dataset.tab === 'calculator') runCalc();
       if (btn.dataset.tab === 'rebalance')  renderRebalance();
+      if (btn.dataset.tab === 'stats')      renderStats();
     });
   });
 
@@ -2017,6 +2203,17 @@ function initEvents() {
   $('btn-clear-cache')?.addEventListener('click', Cache.clearQuotes);
 
   $('reb-amount')?.addEventListener('input', scheduleRebalance);
+
+  document.querySelectorAll('.stats-period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.stats-period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _statsPeriod = btn.dataset.p;
+      const loadingEl = $('bench-loading');
+      if (loadingEl) loadingEl.style.display = '';
+      _renderBenchChart();
+    });
+  });
 
   ['trade-shares', 'trade-price', 'trade-date'].forEach(id =>
     $(id)?.addEventListener('input', () => {
