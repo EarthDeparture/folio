@@ -524,11 +524,14 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
           <div class="chart-card">
             <div class="chart-header">
               <div class="chart-title">Portfolio Value</div>
-              <div class="period-btns">
-                <button class="period-btn active" data-p="1M">1M</button>
-                <button class="period-btn" data-p="3M">3M</button>
-                <button class="period-btn" data-p="6M">6M</button>
-                <button class="period-btn" data-p="1Y">1Y</button>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="period-btns">
+                  <button class="period-btn active" data-p="1M">1M</button>
+                  <button class="period-btn" data-p="3M">3M</button>
+                  <button class="period-btn" data-p="6M">6M</button>
+                  <button class="period-btn" data-p="1Y">1Y</button>
+                </div>
+                <button id="btn-chart-style" class="period-btn" title="Switch chart style" style="padding:4px 8px;font-size:13px">▊</button>
               </div>
             </div>
             <div class="port-chart-wrap">

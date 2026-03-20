@@ -74,7 +74,8 @@ let _deletedClassIds = [];
 let _originalClassIds = [];
 
 // Track gain state for port chart gradient closure
-let portChartIsGain = true;
+let portChartIsGain  = true;
+let _portChartStyle  = 'line'; // 'line' | 'bar'
 
 // Debounce handles for calculator and rebalance
 let _calcTimer = null;
@@ -607,35 +608,73 @@ function lineGrad(ctx, isGain) {
   return g;
 }
 
-// Reuse chart instance with .update('none') to avoid destroy/recreate overhead.
-// portChartIsGain is a module-level variable so the backgroundColor closure
-// reflects the current gain state on each update.
+// Reuse chart instance with .update('none') for data-only changes.
+// Destroy + recreate when chart type changes (Chart.js requires this).
+// portChartIsGain is module-level so the backgroundColor gradient closure
+// always reflects the current gain state.
 function buildPortChart(labels, vals) {
   const isGain = !vals.length || vals[vals.length - 1] >= vals[0];
   const col    = isGain ? '#14f0a8' : '#f0486e';
   portChartIsGain = isGain;
 
-  if (S.charts.port) {
-    S.charts.port.data.labels                  = labels;
-    S.charts.port.data.datasets[0].data        = vals;
-    S.charts.port.data.datasets[0].borderColor = col;
+  const isBar = _portChartStyle === 'bar';
+
+  // If same type and instance exists — update data in place
+  if (S.charts.port && S.charts.port.config.type === _portChartStyle) {
+    S.charts.port.data.labels = labels;
+    S.charts.port.data.datasets[0].data = vals;
+    if (!isBar) {
+      S.charts.port.data.datasets[0].borderColor = col;
+    } else {
+      S.charts.port.data.datasets[0].backgroundColor = vals.map((v, i) =>
+        i === 0 || v >= vals[i - 1] ? 'rgba(20,240,168,0.75)' : 'rgba(240,72,110,0.75)'
+      );
+    }
     S.charts.port.update('none');
     return;
   }
 
-  S.charts.port = new Chart($('c-portfolio'), {
-    type: 'line',
-    data: { labels, datasets: [{ data: vals, borderColor: col, borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: ctx => lineGrad(ctx, portChartIsGain), tension: .35 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode:'index', intersect:false },
-      plugins: { legend:{ display:false }, tooltip:{ ...TT, callbacks:{ label: c => ` ${f.$(c.parsed.y)}` } } },
-      scales: {
-        x: { grid:{ display:false }, ticks:{ maxTicksLimit:6, font:{ size:10 } } },
-        y: { position:'right', grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ font:{ size:10 }, callback: v => f.$(v,0) } },
-      },
+  // Destroy existing instance before switching type
+  if (S.charts.port) { S.charts.port.destroy(); S.charts.port = null; }
+
+  const canvas = $('c-portfolio');
+  if (!canvas) return;
+
+  const sharedOpts = {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode:'index', intersect:false },
+    plugins: { legend:{ display:false }, tooltip:{ ...TT, callbacks:{ label: c => ` ${f.$(c.parsed.y)}` } } },
+    scales: {
+      x: { grid:{ display:false }, ticks:{ maxTicksLimit:6, font:{ size:10 } } },
+      y: { position:'right', grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ font:{ size:10 }, callback: v => f.$(v,0) } },
     },
-  });
+  };
+
+  if (isBar) {
+    const barColors = vals.map((v, i) =>
+      i === 0 || v >= vals[i - 1] ? 'rgba(20,240,168,0.75)' : 'rgba(240,72,110,0.75)'
+    );
+    S.charts.port = new Chart(canvas, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: vals, backgroundColor: barColors, borderRadius: 2, borderSkipped: false }] },
+      options: sharedOpts,
+    });
+  } else {
+    S.charts.port = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets: [{ data: vals, borderColor: col, borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: ctx => lineGrad(ctx, portChartIsGain), tension: .35 }] },
+      options: sharedOpts,
+    });
+  }
+}
+
+function togglePortChartStyle() {
+  _portChartStyle = _portChartStyle === 'line' ? 'bar' : 'line';
+  const btn = $('btn-chart-style');
+  if (btn) btn.textContent = _portChartStyle === 'bar' ? '∿' : '▊';
+  // Destroy so buildPortChart recreates with the new type
+  if (S.charts.port) { S.charts.port.destroy(); S.charts.port = null; }
+  loadPortChart(S.period).catch(e => console.warn('Port chart toggle:', e.message));
 }
 
 function buildAllocChart(rows) {
@@ -734,8 +773,9 @@ function renderDash() {
       ? `${S.portfolios.length} portfolio${S.portfolios.length !== 1 ? 's' : ''}`
       : `${f.$(allG)} (${f.pct(allPct)})`,
     S.showCombined ? 'var(--muted)' : gc(allG));
-  set('s-daygain', f.$(dayG),            gc(dayG));
-  set('s-daypct',  f.pct(dayPct) + ' vs. yesterday',  gc(dayG));
+  set('s-daygain',    f.$(dayG),                       gc(dayG));
+  set('s-daypct',     f.pct(dayPct) + ' vs. yesterday', gc(dayG));
+  set('s-allgain-abs', f.$(dayG),                      gc(dayG));
   set('s-allpct',  f.pct(allPct),        gc(allG));
   set('s-cost',    fxFmt(cost));
   set('s-count',   `${S.positions.length} position${S.positions.length !== 1 ? 's' : ''}`);
@@ -2349,6 +2389,7 @@ function initEvents() {
   });
 
   $('btn-profile')?.addEventListener('click', showProfileModal);
+  $('btn-chart-style')?.addEventListener('click', togglePortChartStyle);
 
   const signOutHandler = async () => {
     await S.db.auth.signOut();

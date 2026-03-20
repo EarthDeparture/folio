@@ -161,7 +161,7 @@ img { max-width:100%; }
   margin-left:12px;
 }
 .preview-body { padding:20px; }
-.preview-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+.preview-stats { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:14px; }
 .ps {
   background:var(--card);
   border:1px solid var(--border);
@@ -375,7 +375,7 @@ footer {
   .test-grid { grid-template-columns:1fr; }
   .price-grid { grid-template-columns:1fr; max-width:420px; }
   .preview-charts { grid-template-columns:1fr; }
-  .preview-stats { grid-template-columns:repeat(2,1fr); }
+  .preview-stats { grid-template-columns:repeat(3,1fr); }
 }
 @media (max-width:640px) {
   .wrap { padding:0 16px; }
@@ -466,6 +466,11 @@ footer {
               <div class="ps-lbl">Cost Basis</div>
               <div class="ps-val" style="color:var(--text)">$100,030</div>
               <div class="ps-sub" style="color:var(--muted)">8 positions</div>
+            </div>
+            <div class="ps">
+              <div class="ps-lbl">Day P&amp;L</div>
+              <div class="ps-val gain">+$940</div>
+              <div class="ps-sub gain">+0.73%</div>
             </div>
           </div>
           <div class="preview-charts">
