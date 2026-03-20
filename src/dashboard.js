@@ -1884,6 +1884,87 @@ function scheduleCalc() {
   _calcTimer = setTimeout(runCalc, 300);
 }
 
+// ── WHAT-IF SIMULATOR ──────────────────────────────────────────
+async function runWhatIf() {
+  const symInput = $('wi-symbol');
+  const amtInput = $('wi-amount');
+  const result   = $('wi-result');
+  if (!symInput || !amtInput || !result) return;
+
+  const sym    = symInput.value.trim().toUpperCase().replace(/[^A-Z0-9.-]/g, '');
+  const amount = parseFloat(amtInput.value);
+
+  if (!sym) { toast('Enter a symbol', 'error'); return; }
+  if (!amount || amount <= 0) { toast('Enter an amount', 'error'); return; }
+
+  result.innerHTML = '<div class="spinner-wrap" style="padding:20px"><div class="spinner"></div></div>';
+
+  // Get current price — try cache first, then fetch
+  let quote = S.quotes[sym];
+  if (!quote?.price) {
+    try { quote = await API._oneQuote(sym); if (quote) S.quotes[sym] = quote; }
+    catch(e) {}
+  }
+  const price = quote?.price;
+  if (!price) {
+    result.innerHTML = `<p style="color:var(--loss);font-size:13px">Could not find price for ${sym}. Check your API key in Settings.</p>`;
+    return;
+  }
+
+  const newShares   = amount / price;
+  const portVal     = Port.value();
+  const existing    = S.positions.find(p => p.symbol === sym);
+  const existShares = existing?.shares ?? 0;
+  const existVal    = price * existShares;
+  const newPosVal   = existVal + amount;
+  const newPortTotal= portVal + amount;
+
+  const oldAlloc    = portVal > 0 ? (existVal    / portVal)     * 100 : 0;
+  const newAlloc    = newPortTotal > 0 ? (newPosVal / newPortTotal) * 100 : 0;
+  const targetW     = existing?.target_weight ?? 0;
+
+  const annualDiv   = quote?.dividendYield ? price * quote.dividendYield : null;
+  const oldIncome   = annualDiv != null ? annualDiv * existShares : null;
+  const newIncome   = annualDiv != null ? annualDiv * (existShares + newShares) : null;
+  const incomeDelta = oldIncome != null ? newIncome - oldIncome : null;
+
+  const totalShares = existShares + newShares;
+  const newAvgCost  = existShares > 0
+    ? ((existShares * (existing?.avg_cost ?? price)) + (newShares * price)) / totalShares
+    : price;
+
+  const fmt$ = n => n == null ? '—' : f.$(n);
+  const fmtPct = n => n == null ? '—' : f.pct(n, 2);
+  const gc  = (n, negate) => {
+    const v = negate ? -n : n;
+    return v >= 0 ? 'var(--gain)' : 'var(--loss)';
+  };
+
+  result.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px">Before</div>
+        <div class="res-item"><div class="rl">Shares held</div><div class="rv">${f.num(existShares, existShares % 1 === 0 ? 0 : 4)}</div></div>
+        <div class="res-item"><div class="rl">${sym} allocation</div><div class="rv">${fmtPct(oldAlloc)}</div></div>
+        ${targetW > 0 ? `<div class="res-item"><div class="rl">Target weight</div><div class="rv">${fmtPct(targetW)}</div></div>` : ''}
+        ${oldIncome != null ? `<div class="res-item"><div class="rl">Annual income</div><div class="rv">${fmt$(oldIncome)}</div></div>` : ''}
+        <div class="res-item"><div class="rl">Portfolio total</div><div class="rv">${fmt$(portVal)}</div></div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:10px">After (+${fmt$(amount)})</div>
+        <div class="res-item"><div class="rl">Shares held</div><div class="rv" style="color:var(--accent)">${f.num(totalShares, totalShares % 1 === 0 ? 0 : 4)}</div></div>
+        <div class="res-item"><div class="rl">${sym} allocation</div><div class="rv" style="color:${gc(newAlloc - oldAlloc)}">${fmtPct(newAlloc)}</div></div>
+        ${targetW > 0 ? `<div class="res-item"><div class="rl">vs target</div><div class="rv" style="color:${gc(newAlloc - targetW, true)}">${newAlloc >= targetW ? '+' : ''}${f.num(newAlloc - targetW, 2)}pp</div></div>` : ''}
+        ${newIncome != null ? `<div class="res-item"><div class="rl">Annual income</div><div class="rv" style="color:var(--gain)">${fmt$(newIncome)} <span style="font-size:10px;color:var(--muted)">(+${fmt$(incomeDelta)})</span></div></div>` : ''}
+        <div class="res-item"><div class="rl">Portfolio total</div><div class="rv" style="color:var(--accent)">${fmt$(newPortTotal)}</div></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:12px;color:var(--muted)">Buying <strong style="color:var(--text)">${f.num(newShares, newShares >= 10 ? 2 : 4)} sh</strong> of ${sym} @ ${fmt$(price)} · New avg cost: <strong style="color:var(--text)">${fmt$(newAvgCost)}</strong></div>
+      <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px;white-space:nowrap" onclick="showTradeModal('${sym}');document.getElementById('trade-price').value='${price.toFixed(4)}';document.getElementById('trade-shares').value='${(amount/price).toFixed(4)}';_updateTradePreview()">Add to Portfolio →</button>
+    </div>`;
+}
+
 // ── REBALANCE ──────────────────────────────────────────────────
 function computeAllocation(deposit) {
   const rows     = Port.rows();
@@ -2859,6 +2940,10 @@ function initEvents() {
   ['c-start','c-monthly','c-return','c-div','c-years'].forEach(id =>
     $(id)?.addEventListener('input', scheduleCalc)
   );
+
+  $('btn-whatif')?.addEventListener('click', runWhatIf);
+  $('wi-symbol')?.addEventListener('keydown', e => { if (e.key === 'Enter') runWhatIf(); });
+  $('wi-amount')?.addEventListener('keydown', e => { if (e.key === 'Enter') runWhatIf(); });
   $('drip-toggle')?.addEventListener('click', e => {
     S.drip = !S.drip;
     e.currentTarget.classList.toggle('on', S.drip);
@@ -2937,8 +3022,9 @@ window.removeFromWatchlist   = removeFromWatchlist;
 window.showUpgradeModal = showUpgradeModal;
 window.setUpgradeToggle = setUpgradeToggle;
 window.handleCheckout   = handleCheckout;
-window.showTradeModal   = showTradeModal;
-window._setTradeType    = _setTradeType;
+window.showTradeModal      = showTradeModal;
+window._setTradeType       = _setTradeType;
+window._updateTradePreview = _updateTradePreview;
 window.openBillingPortal = openBillingPortal;
 
 init();
