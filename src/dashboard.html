@@ -300,6 +300,8 @@ input, select, button { font-family:var(--sans); }
   display:flex; gap:10px; justify-content:flex-end;
   padding:16px 24px; border-top:1px solid var(--border);
 }
+.onb-dot { width:8px; height:8px; border-radius:50%; background:var(--border); transition:background .2s; }
+.onb-dot.active { background:var(--accent); }
 
 /* ── SETTINGS EDITOR ── */
 .h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 80px 140px 36px; gap:8px; align-items:center; margin-bottom:8px; }
@@ -1175,6 +1177,85 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
         <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:12px" onclick="openBillingPortal()">Manage Billing</button>
       </div>
       <button class="btn btn-ghost" id="profile-signout-btn" style="width:100%;justify-content:center;padding:12px;color:var(--muted)">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding Flow -->
+<div class="overlay" id="ov-onboarding">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <h2>Welcome to DIVIDND</h2>
+        <div style="display:flex;gap:6px;margin-top:8px" id="onb-steps">
+          <div class="onb-dot active" data-s="1"></div>
+          <div class="onb-dot" data-s="2"></div>
+          <div class="onb-dot" data-s="3"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost" id="btn-onboard-skip" style="font-size:12px;color:var(--muted)">Skip</button>
+    </div>
+
+    <!-- Step 1: Name portfolio -->
+    <div class="modal-body" id="onb-step-1">
+      <p style="color:var(--muted);font-size:13px;margin-bottom:20px;line-height:1.6">Let's set up your portfolio in 2 quick steps. You can always change everything later.</p>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Portfolio Name</label>
+        <input type="text" id="onb-folio-name" placeholder="My Portfolio" maxlength="60"
+          style="width:100%;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;box-sizing:border-box">
+      </div>
+      <button class="btn btn-accent" id="btn-onb-step1" style="width:100%;justify-content:center;padding:12px">Continue →</button>
+    </div>
+
+    <!-- Step 2: First position -->
+    <div class="modal-body" id="onb-step-2" style="display:none">
+      <p style="color:var(--muted);font-size:13px;margin-bottom:20px;line-height:1.6">Add your first holding. You can add more from Settings anytime.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Symbol</label>
+          <input type="text" id="onb-sym" placeholder="AAPL" maxlength="10"
+            style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none;box-sizing:border-box;text-transform:uppercase">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Shares</label>
+          <input type="number" id="onb-shares" placeholder="0" min="0" step="any"
+            style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Average Cost / Share ($)</label>
+        <input type="number" id="onb-cost" placeholder="0.00" min="0" step="any"
+          style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none;box-sizing:border-box">
+      </div>
+      <button class="btn btn-accent" id="btn-onb-step2" style="width:100%;justify-content:center;padding:12px">Add Position →</button>
+    </div>
+
+    <!-- Step 3: Success -->
+    <div class="modal-body" id="onb-step-3" style="display:none">
+      <div style="text-align:center;padding:10px 0 20px">
+        <div style="font-size:40px;margin-bottom:12px">🎉</div>
+        <div style="font-size:17px;font-weight:700;margin-bottom:8px">You're all set!</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:20px">Here's what you can explore:</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Dashboard</div>
+          <div style="font-size:12px;color:var(--muted)">Portfolio value, day gain, allocation chart</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Dividends Tab</div>
+          <div style="font-size:12px;color:var(--muted)">Income calendar, yield on cost, projections</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Stats Tab</div>
+          <div style="font-size:12px;color:var(--muted)">Benchmark comparison, rolling returns, correlation</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Watchlist</div>
+          <div style="font-size:12px;color:var(--muted)">Track symbols with price target alerts</div>
+        </div>
+      </div>
+      <button class="btn btn-accent" id="btn-onb-done" style="width:100%;justify-content:center;padding:12px">Go to Dashboard</button>
     </div>
   </div>
 </div>

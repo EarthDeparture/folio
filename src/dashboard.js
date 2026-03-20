@@ -2518,6 +2518,82 @@ async function openBillingPortal() {
   } catch(e) { toast('Could not open billing portal.', 'error'); }
 }
 
+// ── ONBOARDING FLOW ────────────────────────────────────────────
+let _onboardFolioId = null;
+
+function showOnboarding() {
+  _onboardFolioId = null;
+  // Reset to step 1
+  ['onb-step-1','onb-step-2','onb-step-3'].forEach((id, i) =>
+    $(`${id}`) && ($(`${id}`).style.display = i === 0 ? '' : 'none')
+  );
+  document.querySelectorAll('.onb-dot').forEach((d, i) =>
+    d.classList.toggle('active', i === 0)
+  );
+  const input = $('onb-folio-name');
+  if (input) input.value = 'My Portfolio';
+  $('ov-onboarding').classList.add('open');
+}
+
+function _onbSetStep(n) {
+  ['onb-step-1','onb-step-2','onb-step-3'].forEach((id, i) => {
+    const el = $(id); if (el) el.style.display = i === n - 1 ? '' : 'none';
+  });
+  document.querySelectorAll('.onb-dot').forEach((d, i) =>
+    d.classList.toggle('active', i < n)
+  );
+}
+
+function _dismissOnboarding() {
+  localStorage.setItem('dividnd_onboarded', '1');
+  closeOverlay('ov-onboarding');
+}
+
+async function _onbGoStep2() {
+  const nameInput = $('onb-folio-name');
+  const name = nameInput?.value.trim() || '';
+  if (!name) { if (nameInput) { nameInput.style.borderColor = 'var(--loss)'; nameInput.focus(); } return; }
+  if (nameInput) nameInput.style.borderColor = '';
+  const btn = $('btn-onb-step1');
+  if (btn) btn.textContent = 'Creating…';
+  try {
+    const folio = await DB.createPortfolio(name);
+    _onboardFolioId = folio.id;
+    S.portfolios.push(folio);
+    S.currentFolioId = folio.id;
+    localStorage.setItem('dividnd_current_id', folio.id);
+    updateFolioPill();
+    _onbSetStep(2);
+    $('onb-sym')?.focus();
+  } catch(e) {
+    toast('Could not create portfolio: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.textContent = 'Continue →';
+  }
+}
+
+async function _onbGoStep3() {
+  const sym    = $('onb-sym')?.value.trim().toUpperCase().replace(/[^A-Z0-9.-]/g,'') || '';
+  const shares = parseFloat($('onb-shares')?.value);
+  const cost   = parseFloat($('onb-cost')?.value);
+  if (!sym || !shares || shares <= 0 || !cost || cost <= 0) {
+    toast('Enter symbol, shares, and average cost', 'error'); return;
+  }
+  if (!_onboardFolioId) { _dismissOnboarding(); return; }
+  const btn = $('btn-onb-step2');
+  if (btn) btn.textContent = 'Adding…';
+  try {
+    await DB.upsertPosition(_onboardFolioId, sym, shares, cost, COLORS[0], 0, null);
+    S.positions = await DB.listPositions(_onboardFolioId);
+    renderDash(); renderHoldings();
+    _onbSetStep(3);
+  } catch(e) {
+    toast('Could not add position: ' + e.message, 'error');
+  } finally {
+    if (btn) btn.textContent = 'Add Position →';
+  }
+}
+
 // ── CREATE PORTFOLIO MODAL ──────────────────────────────────────
 function openCreateFolioModal() {
   if (!isPremium() && S.portfolios.length >= FREE_LIMITS.portfolios) {
@@ -3031,6 +3107,13 @@ function initEvents() {
     Cache.clearQuotes();
     loadAll().finally(() => { btn.disabled = false; });
   });
+  // Onboarding flow
+  $('btn-onboard-skip')?.addEventListener('click', _dismissOnboarding);
+  $('btn-onb-done')?.addEventListener('click', _dismissOnboarding);
+  $('onb-folio-name')?.addEventListener('keypress', e => { if (e.key === 'Enter') _onbGoStep2(); });
+  $('btn-onb-step1')?.addEventListener('click', _onbGoStep2);
+  $('btn-onb-step2')?.addEventListener('click', _onbGoStep3);
+
   $('btn-settings')?.addEventListener('click', openSettings);
   $('btn-add-pos')?.addEventListener('click', openPositions);
   $('dash-create-btn')?.addEventListener('click', openFolioModal);
@@ -3194,8 +3277,8 @@ async function init() {
   runCalc();
   await loadAll();
 
-  if (!S.portfolios.length)
-    toast('Welcome to DIVIDND! Create your first portfolio to get started.', 'info');
+  if (!S.portfolios.length && !localStorage.getItem('dividnd_onboarded'))
+    showOnboarding();
 
   // Post-checkout success redirect
   if (new URLSearchParams(location.search).get('upgraded') === '1') {
