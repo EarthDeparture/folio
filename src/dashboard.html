@@ -420,6 +420,34 @@ input, select, button { font-family:var(--sans); }
   .folio-pill { max-width:150px; }
 }
 
+/* ── DIVIDENDS TAB ── */
+.dividends-tab { padding:28px 0 48px; }
+.stats-row-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.div-layout { display:grid; grid-template-columns:1fr 300px; gap:16px; margin-bottom:20px; }
+.div-cal-nav { display:flex; align-items:center; gap:10px; }
+.div-cal-nav button { background:var(--card); border:1px solid var(--border); color:var(--muted); border-radius:7px; padding:4px 11px; cursor:pointer; font-size:14px; transition:all .15s; }
+.div-cal-nav button:hover { border-color:var(--accent); color:var(--accent); }
+.div-cal-nav span { font-size:13px; font-weight:600; min-width:110px; text-align:center; }
+.div-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.div-cal-wd { font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); text-align:center; padding:3px 0 8px; }
+.div-cal-day { min-height:52px; border-radius:7px; padding:5px 5px; border:1px solid transparent; }
+.div-cal-day.has-ev { background:var(--card); border-color:var(--border); }
+.div-cal-day.today { border-color:var(--ba) !important; background:var(--adim) !important; }
+.div-cal-dn { font-size:10px; color:var(--muted); margin-bottom:3px; line-height:1; }
+.div-cal-day.today .div-cal-dn { color:var(--accent); font-weight:700; }
+.div-chip { font-size:9px; font-weight:700; padding:2px 5px; border-radius:4px; display:block; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:default; }
+.div-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.div-tbl th { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:6px 10px; text-align:right; border-bottom:1px solid var(--border); }
+.div-tbl th:first-child { text-align:left; }
+.div-tbl td { padding:10px 10px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:right; font-family:var(--mono); font-size:12px; }
+.div-tbl td:first-child { text-align:left; font-family:var(--sans); }
+.div-tbl tr:last-child td { border-bottom:none; }
+.div-tbl tr:hover td { background:rgba(255,255,255,0.02); }
+@media (max-width:960px) {
+  .div-layout { grid-template-columns:1fr; }
+  .stats-row-4 { grid-template-columns:repeat(2,1fr); }
+}
+
 /* ── STATS TAB ── */
 .stats-tab { padding:28px 0 48px; }
 .stats-row-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px; }
@@ -456,6 +484,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
 
       <div class="nav-tabs">
         <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-btn" data-tab="dividends">Dividends</button>
         <button class="nav-btn" data-tab="stats">Stats</button>
         <button class="nav-btn" data-tab="calculator">Calculator</button>
         <button class="nav-btn" data-tab="rebalance">Rebalance</button>
@@ -735,6 +764,97 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
       </div><!-- /stats-content -->
     </div>
   </div><!-- /tab-stats -->
+
+  <!-- DIVIDENDS TAB -->
+  <div class="tab" id="tab-dividends">
+    <div class="wrap dividends-tab">
+
+      <div id="div-empty" style="display:none;text-align:center;padding:80px 0;color:var(--muted)">
+        <div style="font-weight:600;font-size:15px;margin-bottom:6px">No positions yet</div>
+        <div style="font-size:13px">Add positions to see dividend analytics.</div>
+      </div>
+
+      <div id="div-content">
+
+        <!-- Income stat cards -->
+        <div class="stats-row-4">
+          <div class="sc" style="border-color:var(--ba);background:rgba(20,240,168,.03)">
+            <div class="sc-lbl">Annual Income</div>
+            <div class="sc-val c-muted" id="div-stat-annual">—</div>
+            <div class="sc-sub" id="div-stat-positions">projected</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Monthly Income</div>
+            <div class="sc-val c-muted" id="div-stat-monthly">—</div>
+            <div class="sc-sub" style="color:var(--muted)">projected avg</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Portfolio Yield</div>
+            <div class="sc-val c-muted" id="div-stat-yield">—</div>
+            <div class="sc-sub" style="color:var(--muted)">current market value</div>
+          </div>
+          <div class="sc">
+            <div class="sc-lbl">Avg Yield on Cost</div>
+            <div class="sc-val c-muted" id="div-stat-yoc">—</div>
+            <div class="sc-sub" style="color:var(--muted)">vs avg cost basis</div>
+          </div>
+        </div>
+
+        <!-- Calendar + Holdings -->
+        <div class="div-layout">
+          <!-- Income Calendar -->
+          <div class="chart-card">
+            <div class="chart-header" style="margin-bottom:16px">
+              <div class="chart-title">Income Calendar</div>
+              <div class="div-cal-nav">
+                <button id="div-cal-prev">‹</button>
+                <span id="div-cal-label">—</span>
+                <button id="div-cal-next">›</button>
+              </div>
+            </div>
+            <div class="div-cal-grid" id="div-cal-weekdays">
+              <div class="div-cal-wd">Sun</div>
+              <div class="div-cal-wd">Mon</div>
+              <div class="div-cal-wd">Tue</div>
+              <div class="div-cal-wd">Wed</div>
+              <div class="div-cal-wd">Thu</div>
+              <div class="div-cal-wd">Fri</div>
+              <div class="div-cal-wd">Sat</div>
+            </div>
+            <div class="div-cal-grid" style="margin-top:3px" id="div-cal"></div>
+            <div class="stats-note" style="margin-top:10px">Ex-dividend dates. Projected from payment history where exact dates are unavailable.</div>
+          </div>
+
+          <!-- Dividend Holdings table -->
+          <div class="chart-card">
+            <div class="chart-title" style="margin-bottom:14px">Dividend Holdings</div>
+            <table class="div-tbl">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th title="Current yield based on market price">Yield</th>
+                  <th title="Yield on cost — annual dividend / your avg purchase price">YOC</th>
+                  <th>Annual Est.</th>
+                </tr>
+              </thead>
+              <tbody id="div-holdings-body">
+                <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Dividend History -->
+        <div class="chart-card">
+          <div class="chart-title" style="margin-bottom:14px">Dividend History</div>
+          <div id="div-history-wrap">
+            <div class="spinner-wrap"><div class="spinner"></div></div>
+          </div>
+        </div>
+
+      </div><!-- /div-content -->
+    </div>
+  </div><!-- /tab-dividends -->
 
 </div><!-- /app-shell -->
 

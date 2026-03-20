@@ -84,6 +84,9 @@ let _rebTimer  = null;
 // Stats tab state
 let _statsPeriod    = 'YTD';
 let _statsHistCache = null;   // { SYM: [{date,close},...], SPY: [...] }
+let _divCalMonth    = new Date().getMonth();
+let _divCalYear     = new Date().getFullYear();
+let _divHistCache   = null;   // { SYM: [{date,dividend},...] }
 
 // Trade modal state
 let _tradeModalSymbol = null;
@@ -1249,6 +1252,209 @@ async function deleteTradeAndRecalc(tradeId, symbol) {
 }
 
 // ── STATS TAB ──────────────────────────────────────────────────
+// ── DIVIDENDS TAB ──────────────────────────────────────────────
+
+function _getDivPositions() {
+  return S.positions.map(p => {
+    const q              = S.quotes[p.symbol];
+    const price          = q?.price || 0;
+    const yieldDecimal   = q?.dividendYield || 0;          // e.g. 0.0157
+    const annualDivPerSh = price * yieldDecimal;            // $ per share per year
+    const annualIncome   = p.shares * annualDivPerSh;
+    const yoc            = p.avg_cost > 0 ? (annualDivPerSh / p.avg_cost) * 100 : 0;
+    return { ...p, price, yieldPct: yieldDecimal * 100, annualDivPerSh, annualIncome, yoc };
+  }).filter(p => (S.quotes[p.symbol]?.dividendYield || 0) > 0)
+    .sort((a, b) => b.annualIncome - a.annualIncome);
+}
+
+function _renderDivHoldings(divPos) {
+  const tbody = $('div-holdings-body');
+  if (!tbody) return;
+  if (!divPos.length) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:13px">No dividend-paying positions found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = divPos.map(p => {
+    const color    = p.color || '#14f0a8';
+    const yocStyle = p.yoc > p.yieldPct && p.yoc > 0 ? 'color:var(--gain)' : 'color:var(--muted)';
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:6px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>${p.symbol}
+      </span></td>
+      <td>${p.yieldPct > 0 ? f.num(p.yieldPct, 2) + '%' : '—'}</td>
+      <td style="${yocStyle}">${p.yoc > 0 ? f.num(p.yoc, 2) + '%' : '—'}</td>
+      <td style="color:var(--gain)">${p.annualIncome > 0.01 ? f.$(p.annualIncome) : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _divProjectDates(symbol, yr, mo) {
+  const hist = (_divHistCache?.[symbol] || [])
+    .filter(d => d.date && d.dividend > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (hist.length < 2) return [];
+
+  const intervals = [];
+  for (let i = 1; i < Math.min(hist.length, 8); i++) {
+    const ms = new Date(hist[i].date + 'T00:00:00') - new Date(hist[i-1].date + 'T00:00:00');
+    intervals.push(ms / 86400000);
+  }
+  const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  const lastAmt  = hist[hist.length - 1].dividend;
+  const lastDate = new Date(hist[hist.length - 1].date + 'T00:00:00');
+  const tStart   = new Date(yr, mo, 1);
+  const tEnd     = new Date(yr, mo + 1, 0);
+
+  const results = [];
+  const seen    = new Set();
+  const check   = d => {
+    if (d >= tStart && d <= tEnd) {
+      const day = d.getDate();
+      if (!seen.has(day)) { seen.add(day); results.push({ day, amount: lastAmt }); }
+    }
+  };
+  let d = new Date(lastDate);
+  while (d <= tEnd) { d = new Date(d.getTime() + avgInterval * 86400000); check(d); }
+  d = new Date(lastDate);
+  while (d >= tStart) { d = new Date(d.getTime() - avgInterval * 86400000); check(d); }
+  return results;
+}
+
+function _renderDivCalendar() {
+  const calEl = $('div-cal');
+  if (!calEl) return;
+  const yr = _divCalYear, mo = _divCalMonth;
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const lbl = $('div-cal-label');
+  if (lbl) lbl.textContent = `${MONTHS[mo]} ${yr}`;
+
+  const today    = new Date();
+  const firstDay = new Date(yr, mo, 1).getDay();
+  const daysInMo = new Date(yr, mo + 1, 0).getDate();
+  const divPos   = _getDivPositions();
+
+  // Build events map: day → [{symbol,color,amount,shares,projected}]
+  const events = {};
+  const add = (day, ev) => { (events[day] = events[day] || []).push(ev); };
+
+  divPos.forEach(p => {
+    const hist   = _divHistCache?.[p.symbol] || [];
+    let hasActual = false;
+    hist.forEach(d => {
+      if (!d.date) return;
+      const dt = new Date(d.date + 'T00:00:00');
+      if (dt.getFullYear() === yr && dt.getMonth() === mo) {
+        hasActual = true;
+        add(dt.getDate(), { symbol: p.symbol, color: p.color || '#14f0a8', amount: d.dividend, shares: p.shares });
+      }
+    });
+    if (!hasActual && _divHistCache) {
+      _divProjectDates(p.symbol, yr, mo).forEach(proj =>
+        add(proj.day, { symbol: p.symbol, color: p.color || '#14f0a8', amount: proj.amount, shares: p.shares, projected: true })
+      );
+    }
+  });
+
+  let html = '';
+  for (let i = 0; i < firstDay; i++) html += '<div></div>';
+  for (let day = 1; day <= daysInMo; day++) {
+    const isToday = today.getFullYear() === yr && today.getMonth() === mo && today.getDate() === day;
+    const evs     = events[day] || [];
+    html += `<div class="div-cal-day${evs.length ? ' has-ev' : ''}${isToday ? ' today' : ''}">`;
+    html += `<div class="div-cal-dn">${day}</div>`;
+    evs.slice(0, 3).forEach(ev => {
+      const tip = `${ev.symbol} · $${ev.amount?.toFixed(4) ?? '?'}/sh · Est. ${f.$(ev.amount * ev.shares)}${ev.projected ? ' (projected)' : ''}`;
+      html += `<div class="div-chip" style="background:${ev.color}22;color:${ev.color}" title="${tip}">${ev.symbol}</div>`;
+    });
+    if (evs.length > 3) html += `<div class="div-chip" style="background:var(--card);color:var(--muted)">+${evs.length - 3}</div>`;
+    html += '</div>';
+  }
+  calEl.innerHTML = html;
+}
+
+function _renderDivHistory(divPos) {
+  const wrap = $('div-history-wrap');
+  if (!wrap || !_divHistCache) return;
+
+  const all = [];
+  divPos.forEach(p => {
+    (_divHistCache[p.symbol] || []).forEach(d => {
+      if (d.date && d.dividend > 0)
+        all.push({ date: d.date, symbol: p.symbol, color: p.color || '#14f0a8', amtPerSh: d.dividend, shares: p.shares });
+    });
+  });
+  all.sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!all.length) {
+    wrap.innerHTML = `<p style="color:var(--muted);font-size:13px;text-align:center;padding:24px">No dividend history available. Requires an Alpha Vantage premium API key.</p>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="div-list">${all.slice(0, 50).map(d => `
+    <div class="div-row">
+      <span class="dr">${f.date(d.date)}</span>
+      <span style="display:flex;align-items:center;gap:6px">
+        <span style="background:${d.color}22;color:${d.color};font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700">${d.symbol}</span>
+        <span style="font-size:12px;color:var(--muted)">${f.num(d.amtPerSh, 4)}/sh × ${f.num(d.shares, d.shares % 1 === 0 ? 0 : 4)} sh</span>
+      </span>
+      <span class="da" style="color:var(--gain)">${f.$(d.amtPerSh * d.shares)}</span>
+    </div>`).join('')}</div>`;
+}
+
+async function renderDividends() {
+  const empty   = $('div-empty');
+  const content = $('div-content');
+  if (!S.positions.length) {
+    if (empty)   empty.style.display   = '';
+    if (content) content.style.display = 'none';
+    return;
+  }
+  if (empty)   empty.style.display   = 'none';
+  if (content) content.style.display = '';
+
+  const divPos = _getDivPositions();
+
+  // Stat cards — immediate from quotes
+  const annualIncome = divPos.reduce((s, p) => s + p.annualIncome, 0);
+  const portValue    = Port.value();
+  const portCost     = Port.cost();
+  const portYield    = portValue > 0 ? (annualIncome / portValue) * 100 : 0;
+  const avgYoc       = portCost  > 0 ? (annualIncome / portCost)  * 100 : 0;
+
+  const upd = (id, text, cls) => {
+    const el = $(id); if (!el) return;
+    el.textContent = text;
+    if (cls) { el.className = el.className.replace(/\bc-(gain|loss|muted)\b/, ''); el.classList.add('c-' + cls); }
+  };
+  upd('div-stat-annual',  annualIncome > 0 ? f.$(annualIncome)          : '—', annualIncome > 0 ? 'gain' : 'muted');
+  upd('div-stat-monthly', annualIncome > 0 ? f.$(annualIncome / 12)     : '—', annualIncome > 0 ? 'gain' : 'muted');
+  upd('div-stat-yield',   portYield    > 0 ? f.num(portYield, 2) + '%'  : '—', portYield    > 0 ? 'gain' : 'muted');
+  upd('div-stat-yoc',     avgYoc       > 0 ? f.num(avgYoc, 2) + '%'     : '—', avgYoc >= portYield && avgYoc > 0 ? 'gain' : 'muted');
+  const posEl = $('div-stat-positions');
+  if (posEl) posEl.textContent = divPos.length ? `${divPos.length} paying position${divPos.length !== 1 ? 's' : ''}` : 'no dividend payers';
+
+  // Render holdings table immediately
+  _renderDivHoldings(divPos);
+
+  // Render calendar with what we have so far (no history yet)
+  _renderDivCalendar();
+
+  // Fetch dividend history for all paying positions
+  if (!_divHistCache) {
+    _divHistCache = {};
+    await Promise.all(divPos.map(async p => {
+      try {
+        const data = await proxyFetch('/api/dividends', { symbol: p.symbol });
+        _divHistCache[p.symbol] = (data?.dividends || []).map(d => ({ date: d.date, dividend: d.dividend ?? d.amount }));
+      } catch(e) { _divHistCache[p.symbol] = []; }
+    }));
+  }
+
+  // Re-render calendar with actual history data
+  _renderDivCalendar();
+  // Render history table
+  _renderDivHistory(divPos);
+}
+
 function _statsPeriodFrom(period) {
   if (period === 'YTD') return `${new Date().getFullYear()}-01-01`;
   const days = { '1M':30, '3M':90, '6M':182, '1Y':365 }[period] || 30;
@@ -2215,6 +2421,7 @@ function closeOverlay(id) {
 // ── LOAD ALL ───────────────────────────────────────────────────
 async function loadAll() {
   _statsHistCache = null; // invalidate on every portfolio load
+  _divHistCache   = null;
   if (!S.currentFolioId) { S.classes = []; renderDash(); renderHoldings(); return; }
   try {
     S.positions = await DB.listPositions(S.currentFolioId);
@@ -2309,6 +2516,7 @@ function initEvents() {
       $('tab-' + btn.dataset.tab)?.classList.add('active');
       if (btn.dataset.tab === 'calculator') runCalc();
       if (btn.dataset.tab === 'rebalance')  renderRebalance();
+      if (btn.dataset.tab === 'dividends')  renderDividends();
       if (btn.dataset.tab === 'stats')      renderStats();
     });
   });
@@ -2390,6 +2598,14 @@ function initEvents() {
 
   $('btn-profile')?.addEventListener('click', showProfileModal);
   $('btn-chart-style')?.addEventListener('click', togglePortChartStyle);
+  $('div-cal-prev')?.addEventListener('click', () => {
+    _divCalMonth--; if (_divCalMonth < 0) { _divCalMonth = 11; _divCalYear--; }
+    _renderDivCalendar();
+  });
+  $('div-cal-next')?.addEventListener('click', () => {
+    _divCalMonth++; if (_divCalMonth > 11) { _divCalMonth = 0; _divCalYear++; }
+    _renderDivCalendar();
+  });
 
   const signOutHandler = async () => {
     await S.db.auth.signOut();
