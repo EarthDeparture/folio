@@ -2107,23 +2107,34 @@ function _renderCorrelation() {
 
   card.style.display = '';
   card.innerHTML = `
-    <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
-      <div style="flex-shrink:0">
-        <div class="chart-title" style="margin-bottom:12px">Portfolio Correlation</div>
-        <div style="overflow-x:auto">
-          <div style="display:inline-block">
-            <div style="display:flex;gap:4px;margin-bottom:4px;padding-left:50px">${headerCells}</div>
-            <div style="display:flex;flex-direction:column;gap:4px">${rows}</div>
-          </div>
+    <div class="chart-title" style="margin-bottom:16px">Portfolio Correlation</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start">
+      <div style="overflow-x:auto">
+        <div style="display:inline-block">
+          <div style="display:flex;gap:4px;margin-bottom:4px;padding-left:50px">${headerCells}</div>
+          <div style="display:flex;flex-direction:column;gap:4px">${rows}</div>
         </div>
       </div>
-      <div style="flex:1;min-width:200px;padding:12px 14px;background:var(--adim);border:1px solid var(--ba);border-radius:10px;font-size:12px;color:var(--muted);line-height:1.75">
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text);margin-bottom:8px">How to read this</div>
-        <p style="margin:0 0 8px">Each cell shows how closely two of your positions move together day-to-day — a value from <strong style="color:var(--text)">-1.0 to +1.0</strong>.</p>
-        <p style="margin:0 0 8px"><span style="color:#14f0a8;font-weight:600">Green (+1.0)</span> means the two stocks rise and fall together almost perfectly. Your portfolio is concentrated — a bad day for one means a bad day for the other.</p>
-        <p style="margin:0 0 8px"><span style="color:#f0486e;font-weight:600">Red (-1.0)</span> means they move in opposite directions — natural hedges against each other.</p>
-        <p style="margin:0 0 8px"><strong style="color:var(--text)">Near 0</strong> = little relationship — good diversification.</p>
-        <p style="margin:0"><span style="color:var(--text);font-weight:600">How to use it:</span> If most of your positions are deep green, consider adding uncorrelated assets (e.g. bonds, commodities, international stocks) to reduce portfolio-wide risk.</p>
+      <div style="display:flex;flex-direction:column;gap:12px;height:100%">
+        <div style="background:var(--adim);border:1px solid var(--ba);border-radius:10px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px">Color Scale</div>
+          <div style="height:10px;border-radius:6px;background:linear-gradient(to right,rgba(240,72,110,.6),rgba(255,255,255,.08),rgba(20,240,168,.6));margin-bottom:6px"></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">
+            <span style="color:#f0486e">-1.0 inverse</span>
+            <span>0 none</span>
+            <span style="color:#14f0a8">+1.0 identical</span>
+          </div>
+        </div>
+        <div style="background:var(--adim);border:1px solid var(--ba);border-radius:10px;padding:14px 16px;flex:1">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px">How to use this</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted);line-height:1.6">
+            <div>Each cell is the correlation between two positions' daily returns — how closely they move together.</div>
+            <div><span style="color:#14f0a8;font-weight:600">Deep green</span> positions move in lockstep. A bad day for one likely hurts the other — your portfolio is concentrated.</div>
+            <div><span style="color:#f0486e;font-weight:600">Red</span> positions move in opposite directions — they naturally hedge each other.</div>
+            <div><strong style="color:var(--text)">Near 0</strong> means little relationship — healthy diversification.</div>
+            <div style="padding-top:4px;border-top:1px solid var(--ba)">If most cells are deep green, consider adding uncorrelated assets (bonds, international stocks, commodities) to spread risk.</div>
+          </div>
+        </div>
       </div>
     </div>`;
 }
