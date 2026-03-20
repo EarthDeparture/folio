@@ -30,7 +30,7 @@ MOBILE APP             (future — separate repo)
 > A dedicated tab for income investors — the core audience of DIVIDND.
 > Groups all dividend-related analytics in one place.
 
-### 1a. Income Calendar 🔵
+### 1a. Income Calendar 🟢
 **What:** Monthly calendar view showing expected dividend payouts by date. Each day chip shows tickers paying that day + estimated payout amount (shares × dividend per share).
 **Where:** Primary visual on the Dividends tab — above the fold.
 **Requires:**
@@ -40,7 +40,7 @@ MOBILE APP             (future — separate repo)
 - Monthly navigation (prev/next month buttons)
 - Estimated payout = `position.shares × (annual_dividend / payment_frequency)`
 
-### 1b. Dividend Yield on Cost 🔵
+### 1b. Dividend Yield on Cost 🟢
 **What:** For each position, show yield-on-cost (YOC) = `annual_dividend_per_share / avg_cost × 100`. Distinct from current yield (which uses market price). Long-term investors care about this more.
 **Where:** Holdings table in Dividends tab (separate from main holdings table) + possible column in main dashboard table.
 **Requires:**
@@ -48,21 +48,21 @@ MOBILE APP             (future — separate repo)
 - New column in dividend holdings table: YOC % alongside current yield
 - Color coding: YOC above current yield = you bought well (highlight in accent)
 
-### 1c. Annual / Monthly Income Projection 🔵
+### 1c. Annual / Monthly Income Projection 🟢
 **What:** Stat cards showing: projected annual income ($), projected monthly income ($), portfolio yield (current), weighted avg YOC. Based on current positions × dividend schedules.
 **Where:** Top of Dividends tab (stat cards row, like the main dashboard).
 **Requires:**
 - Sum of `shares × annual_dividend_per_share` across all positions
 - Average weighting by position value
 
-### 1d. Dividend History per Position 🔵
+### 1d. Dividend History per Position 🟢
 **What:** Already partially exists in the stock modal. Surface this more prominently in the Dividends tab as a table: date | symbol | amount per share | total payout (shares × amt).
 **Where:** Bottom section of Dividends tab — sortable list of all past dividend events.
 **Requires:**
 - AV `DIVIDENDS` endpoint data (premium key) or manual historical entries
 - Aggregate view across all positions, sorted by pay date desc
 
-### 1e. DRIP Projection 🔵
+### 1e. DRIP Projection 🟢
 **What:** Toggle to simulate dividend reinvestment — show projected portfolio value if all dividends are reinvested vs taken as cash. Tie into the existing Future Value Calculator.
 **Where:** Within Dividends tab or as an extension of the Calculator tab.
 **Requires:**
@@ -73,7 +73,7 @@ MOBILE APP             (future — separate repo)
 
 ## 2. Stats Tab Enhancements (existing tab)
 
-### 2a. Benchmark Toggle 🔵
+### 2a. Benchmark Toggle 🟢
 **What:** Allow selecting different benchmarks to compare against instead of only SPY. Options: SPY (S&P 500), QQQ (Nasdaq 100), VTI (Total Market), GLD (Gold), BTC-USD (Bitcoin).
 **Where:** Small dropdown or pill selector next to the existing benchmark chart period buttons.
 **Requires:**
@@ -82,7 +82,7 @@ MOBILE APP             (future — separate repo)
 - Invalidate cache when benchmark symbol changes
 - 5-button pill selector: `SPY | QQQ | VTI | GLD | BTC`
 
-### 2b. Rolling Returns 🔵
+### 2b. Rolling Returns 🟢
 **What:** Show rolling 30 / 90 / 365-day returns as a line chart. Visualizes consistency and volatility — not just start-to-end performance. Great complement to the current normalized benchmark chart.
 **Where:** New chart card below the benchmark chart in the Stats tab.
 **Requires:**
@@ -91,7 +91,7 @@ MOBILE APP             (future — separate repo)
 - Chart.js line chart with 3 series (30d, 90d, 365d rolling windows)
 - Only show windows where enough data exists (skip first N points)
 
-### 2c. Portfolio Correlation 🔵
+### 2c. Portfolio Correlation 🟢
 **What:** A heatmap showing pairwise correlation between positions using their historical daily returns. Helps identify concentration risk (e.g., AAPL + MSFT + QQQ all moving together).
 **Where:** New section in Stats tab below rolling returns.
 **Requires:**
@@ -117,7 +117,7 @@ MOBILE APP             (future — separate repo)
 - Add by typing a ticker; inline remove button
 - Optional: short personal note per symbol ("waiting for dip below $150")
 
-### 3b. Price Target / Alert 🔵
+### 3b. Price Target / Alert 🟢
 **What:** Set a target price per watchlist item or per position. Visual indicator when current price is near or past the target. In-browser toast alert when quote refreshes and crosses target.
 **Where:** Extra column in both the Watchlist table and the main Holdings table. Alert fires on `renderDash()` / quote refresh.
 **Requires:**
@@ -131,7 +131,7 @@ MOBILE APP             (future — separate repo)
 
 ## 4. Calculator Tab Enhancements (existing tab)
 
-### 4a. What-If Simulator 🔵
+### 4a. What-If Simulator 🟢
 **What:** "What if I add $X of [SYMBOL]?" — shows how the new position would change portfolio allocation %, target weight drift, projected annual income, and new total value. Side-by-side before/after.
 **Where:** New section in the Calculator tab, below the existing Future Value Calculator. Or a "Simulate" button in the holdings table that pre-fills the symbol.
 **Requires:**
@@ -146,7 +146,7 @@ MOBILE APP             (future — separate repo)
 
 ## 5. Onboarding Flow (NEW overlay)
 
-**What:** First-time users (no portfolios yet) see a friendly 3-step guided setup instead of the blank dashboard. Step 1: Name your portfolio. Step 2: Add your first position. Step 3: You're in — here's what you can do.
+**What:** First-time users (no portfolios yet) see a friendly 3-step guided setup instead of the blank dashboard. Step 1: Name your portfolio. Step 2: Add your first position. Step 3: You're in — here's what you can do. 🟢
 **Where:** Fires instead of the empty dashboard state on first login (detect: `S.portfolios.length === 0`).
 **Requires:**
 - `#ov-onboarding` overlay with step indicator (1/2/3)
@@ -191,13 +191,13 @@ MOBILE APP             (future — separate repo)
 
 | Priority | Feature | Effort | Impact |
 |---|---|---|---|
-| 1 | Dividends Tab (income calendar + YOC + projections) | Medium | Very High |
+| 1 | ~~Dividends Tab (income calendar + YOC + projections)~~ 🟢 | Medium | Very High |
 | 2 | Watchlist | Low-Medium | High |
-| 3 | Benchmark Toggle | Low | Medium |
-| 4 | Price Target Alerts | Low-Medium | High |
-| 5 | What-If Simulator | Low | Medium |
-| 6 | Rolling Returns | Low | Medium |
-| 7 | Portfolio Correlation | Medium | Medium |
-| 8 | Onboarding Flow | Low | High (retention) |
-| 9 | DRIP Projection | Medium | Medium |
+| 3 | ~~Benchmark Toggle~~ 🟢 | Low | Medium |
+| 4 | ~~Price Target Alerts~~ 🟢 | Low-Medium | High |
+| 5 | ~~What-If Simulator~~ 🟢 | Low | Medium |
+| 6 | ~~Rolling Returns~~ 🟢 | Low | Medium |
+| 7 | ~~Portfolio Correlation~~ 🟢 | Medium | Medium |
+| 8 | ~~Onboarding Flow~~ 🟢 | Low | High (retention) |
+| 9 | ~~DRIP Projection~~ 🟢 | Medium | Medium |
 | — | Mobile App | Very High | Very High (future) |
