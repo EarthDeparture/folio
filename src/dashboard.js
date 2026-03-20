@@ -40,6 +40,30 @@ const S = {
 const FREE_LIMITS = { portfolios: 1, positions: 5 };
 const isPremium = () => S.plan === 'premium';
 
+function getLimitsRemaining() {
+  const portRem = Math.max(0, FREE_LIMITS.portfolios - S.portfolios.length);
+  const posRem  = Math.max(0, FREE_LIMITS.positions  - S.positions.length);
+  return { portRem, posRem };
+}
+
+function updateLimitsDisplay() {
+  if (isPremium()) return;
+  const { posRem } = getLimitsRemaining();
+  const el = $('pos-remaining');
+  if (el) {
+    if (posRem === 0) {
+      el.textContent = '(limit reached)';
+      el.style.color = 'var(--loss)';
+    } else if (posRem <= 2) {
+      el.textContent = `(${posRem} left)`;
+      el.style.color = 'var(--loss)';
+    } else {
+      el.textContent = `(${posRem} remaining)`;
+      el.style.color = 'var(--muted)';
+    }
+  }
+}
+
 // Separate editor state so Settings edits do not mutate live positions
 let editorRows = [];
 let editorClasses = [];
@@ -717,6 +741,7 @@ function renderDash() {
   if (lu) lu.textContent = `Updated ${new Date().toLocaleTimeString()}`;
 
   buildAllocChart(Port.rows());
+  updateLimitsDisplay();
 }
 
 function renderPositionRow(h, isClassed) {
@@ -820,6 +845,7 @@ function renderHoldings() {
   tbody.querySelectorAll('tr[data-sym]').forEach(row =>
     row.addEventListener('click', () => openStock(row.dataset.sym))
   );
+  updateLimitsDisplay();
 }
 
 async function loadPortChart(period) {
@@ -1546,11 +1572,19 @@ async function renderFolioList() {
   list.innerHTML = '<div class="spinner-wrap" style="padding:16px"><div class="spinner"></div></div>';
   try {
     S.portfolios = await DB.listPortfolios();
+    
+    const limitWarning = !isPremium() && S.portfolios.length >= FREE_LIMITS.portfolios
+      ? `<div style="background:rgba(240,72,110,.08);border:1px solid rgba(240,72,110,.25);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--muted);text-align:center">
+           <span style="color:var(--loss);font-weight:600">Limit reached:</span> Free plan allows ${FREE_LIMITS.portfolios} portfolio.
+           <a onclick="closeOverlay('ov-folio');showUpgradeModal('portfolio')" style="color:var(--accent);cursor:pointer;font-weight:600;margin-left:4px">Upgrade →</a>
+         </div>`
+      : '';
+    
     if (!S.portfolios.length) {
-      list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">No portfolios yet. Create one below.</p>';
+      list.innerHTML = limitWarning + '<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">No portfolios yet. Create one below.</p>';
       return;
     }
-    list.innerHTML = S.portfolios.map(p => `
+    list.innerHTML = limitWarning + S.portfolios.map(p => `
       <div class="folio-item ${p.id === S.currentFolioId ? 'active' : ''}" data-id="${p.id}">
         <div>
           <div class="fi-name">${p.name}</div>
@@ -1617,6 +1651,13 @@ function updatePlanUI() {
     badge.textContent = isPremium() ? 'Premium' : 'Free';
     badge.className   = `plan-badge ${isPremium() ? 'premium' : 'free'}`;
   }
+  const navBadge = $('nav-plan-badge');
+  const navBadgeInner = $('nav-plan-badge-inner');
+  if (navBadge && navBadgeInner) {
+    navBadge.style.display = '';
+    navBadgeInner.textContent = isPremium() ? 'Premium' : 'Free';
+    navBadgeInner.className = `plan-badge ${isPremium() ? 'premium' : 'free'}`;
+  }
   const actionBtn = $('plan-action-btn');
   if (actionBtn) {
     actionBtn.textContent = isPremium() ? 'Manage Billing' : 'Upgrade to Premium';
@@ -1626,10 +1667,21 @@ function updatePlanUI() {
 
 function showUpgradeModal(reason) {
   const msgs = {
-    portfolio: 'Free plan includes 1 portfolio. Upgrade to Premium for unlimited portfolios and positions.',
-    position:  'Free plan includes up to 5 positions. Upgrade to Premium for unlimited positions.',
-    subclass:  'Sub-classes and target weight tracking are Premium features.',
+    portfolio: 'Track your RRSP, TFSA, and trading accounts separately — or consolidate everything in one view.',
+    position:  'Add all your holdings without worrying about limits. Track your entire portfolio.',
+    subclass:  'Organize positions by asset class (Equities, Bonds, ETFs) for better portfolio insight.',
   };
+  const titles = {
+    portfolio: 'You\'ve reached your portfolio limit',
+    position:  'You\'ve reached your position limit',
+    subclass:  'Unlock Sub-Classes & Target Weights',
+  };
+  const { portRem, posRem } = getLimitsRemaining();
+  
+  $('upg-limit-title').textContent = titles[reason] || titles.portfolio;
+  $('upg-limit-detail').textContent = isPremium() 
+    ? 'You\'re on Premium' 
+    : `Free plan: ${FREE_LIMITS.portfolios} portfolio, ${FREE_LIMITS.positions} positions`;
   $('upgrade-body').textContent = msgs[reason] || msgs.portfolio;
   $('ov-upgrade').classList.add('open');
 }
@@ -1680,6 +1732,10 @@ async function openBillingPortal() {
 
 // ── CREATE PORTFOLIO MODAL ──────────────────────────────────────
 function openCreateFolioModal() {
+  if (!isPremium() && S.portfolios.length >= FREE_LIMITS.portfolios) {
+    showUpgradeModal('portfolio');
+    return;
+  }
   const nameInput = $('new-folio-name');
   nameInput.value = '';
   nameInput.classList.remove('error');
@@ -1749,6 +1805,25 @@ function openPositions() {
   _originalClassIds = S.classes.map(c => c.id);
   _deletedClassIds  = [];
   editorRows = S.positions.map(p => ({ ...p }));
+  
+  if (!isPremium()) {
+    const { posRem } = getLimitsRemaining();
+    const hint = $('positions-limit-hint');
+    if (hint) {
+      if (posRem === 0) {
+        hint.textContent = `· ${FREE_LIMITS.positions}/${FREE_LIMITS.positions} positions used`;
+        hint.style.color = 'var(--loss)';
+      } else {
+        hint.textContent = `· ${FREE_LIMITS.positions - posRem}/${FREE_LIMITS.positions} positions used`;
+        hint.style.color = 'var(--muted)';
+      }
+    }
+  } else {
+    const hint = $('positions-limit-hint');
+    if (hint) {
+      hint.textContent = '';
+    }
+  }
 
   // Show/hide sub-class editor based on plan
   const classSection = $('classes-section-wrap');
@@ -2173,6 +2248,10 @@ function initEvents() {
   $('save-positions')?.addEventListener('click', savePositions);
   $('add-holding')?.addEventListener('click', () => {
     syncEditorRowsFromDOM();
+    if (!isPremium() && editorRows.filter(r => r.symbol).length >= FREE_LIMITS.positions) {
+      showUpgradeModal('position');
+      return;
+    }
     editorRows.push({ symbol:'', shares:0, avg_cost:0, folio_id:S.currentFolioId, color:null, target_weight:0, class_id:null });
     renderEditor();
   });
