@@ -88,7 +88,8 @@ const BENCH_LABELS  = { 'SPY':'S&P 500 (SPY)', 'QQQ':'Nasdaq 100 (QQQ)', 'VTI':'
 let _statsHistCache = null;   // { SYM: [{date,close},...], benchmark: [...] }
 let _divCalMonth    = new Date().getMonth();
 let _divCalYear     = new Date().getFullYear();
-let _divHistCache   = null;   // { SYM: [{date,dividend},...] }
+let _divHistCache    = null;   // { SYM: [{date,dividend},...] }
+let _overviewFetched = new Set(); // symbols whose OVERVIEW has been requested this session
 let _watchlist    = [];         // [{ id, symbol, note, target_price }]
 let _alertedSyms  = new Set(); // symbols toasted this session (prevents repeat)
 
@@ -512,6 +513,23 @@ const API = {
     const divs = data?.dividends || [];
     if (divs.length) Cache.set(cKey, divs, CACHE_H);
     return divs;
+  },
+
+  async overview(symbol) {
+    const CACHE_OV = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const cKey = `ov_${symbol}`;
+    const cached = Cache.get(cKey);
+    if (cached) return cached;
+    try {
+      const data = await proxyFetch('/api/overview', { symbol });
+      if (data?.overview) {
+        Cache.set(cKey, data.overview, CACHE_OV);
+        return data.overview;
+      }
+    } catch(e) {
+      console.warn(`[API.overview] ${symbol}:`, e.message);
+    }
+    return null;
   },
 };
 
@@ -1301,6 +1319,26 @@ async function deleteTradeAndRecalc(tradeId, symbol) {
 // ── STATS TAB ──────────────────────────────────────────────────
 // ── DIVIDENDS TAB ──────────────────────────────────────────────
 
+async function _loadDividendYields(positions) {
+  // Fetch OVERVIEW for any position where dividend yield is unknown and not yet tried
+  // Sequential to respect AV rate limits (25 req/min free tier)
+  const missing = positions.filter(p =>
+    !(S.quotes[p.symbol]?.dividendYield > 0) && !_overviewFetched.has(p.symbol)
+  );
+  if (!missing.length) return false; // nothing new to fetch
+  for (const p of missing) {
+    _overviewFetched.add(p.symbol); // mark before fetch to prevent parallel re-entry
+    try {
+      const ov = await API.overview(p.symbol);
+      if (ov) {
+        if (!S.quotes[p.symbol]) S.quotes[p.symbol] = { symbol: p.symbol };
+        S.quotes[p.symbol].dividendYield = ov.dividendYield ?? 0;
+      }
+    } catch(e) { /* skip */ }
+  }
+  return true; // fetched at least one
+}
+
 function _getDivPositions() {
   return S.positions.map(p => {
     const q              = S.quotes[p.symbol];
@@ -1417,6 +1455,19 @@ function _renderDivCalendar() {
     html += '</div>';
   }
   calEl.innerHTML = html;
+
+  // Show a note if history has loaded but all results are empty (premium AV key required)
+  const noteEl = $('div-cal-note');
+  if (noteEl) {
+    const hasHistory = divPos.some(p => (_divHistCache?.[p.symbol] || []).length > 0);
+    const histLoaded = _divHistCache !== null;
+    if (histLoaded && !hasHistory && divPos.length > 0) {
+      noteEl.textContent = 'Dividend dates require an Alpha Vantage premium key. Calendar shows projected dates only when history is available.';
+      noteEl.style.display = '';
+    } else {
+      noteEl.style.display = 'none';
+    }
+  }
 }
 
 function _renderDivHistory(divPos) {
@@ -1457,6 +1508,9 @@ async function renderDividends() {
   }
   if (empty)   empty.style.display   = 'none';
   if (content) content.style.display = '';
+
+  // Fetch OVERVIEW for positions missing dividend yield — re-render only if we got new data
+  _loadDividendYields(S.positions).then(fetched => { if (fetched) renderDividends(); });
 
   const divPos = _getDivPositions();
 
@@ -3107,9 +3161,10 @@ function closeOverlay(id) {
 
 // ── LOAD ALL ───────────────────────────────────────────────────
 async function loadAll() {
-  _statsHistCache = null; // invalidate on every portfolio load
-  _divHistCache   = null;
-  _alertedSyms    = new Set(); // reset price alerts on portfolio switch
+  _statsHistCache  = null; // invalidate on every portfolio load
+  _divHistCache    = null;
+  _overviewFetched = new Set(); // reset so new portfolio re-fetches yield data
+  _alertedSyms     = new Set(); // reset price alerts on portfolio switch
   if (!S.currentFolioId) { S.classes = []; renderDash(); renderHoldings(); return; }
   try {
     S.positions = await DB.listPositions(S.currentFolioId);
@@ -3202,6 +3257,7 @@ function initEvents() {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       $('tab-' + btn.dataset.tab)?.classList.add('active');
+      localStorage.setItem('dividnd_active_tab', btn.dataset.tab);
       if (btn.dataset.tab === 'calculator') runCalc();
       if (btn.dataset.tab === 'rebalance')  renderRebalance();
       if (btn.dataset.tab === 'dividends')  renderDividends();
@@ -3433,6 +3489,21 @@ async function init() {
   updateFolioPill();
   runCalc();
   await loadAll();
+
+  // Restore last-active tab (default: dashboard)
+  const savedTab = localStorage.getItem('dividnd_active_tab') || 'dashboard';
+  const savedBtn = document.querySelector(`.nav-btn[data-tab="${savedTab}"]`);
+  if (savedBtn && savedTab !== 'dashboard') {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    savedBtn.classList.add('active');
+    $('tab-' + savedTab)?.classList.add('active');
+    if (savedTab === 'calculator') runCalc();
+    if (savedTab === 'rebalance')  renderRebalance();
+    if (savedTab === 'dividends')  renderDividends();
+    if (savedTab === 'watchlist')  renderWatchlist();
+    if (savedTab === 'stats')      renderStats();
+  }
 
   if (!S.portfolios.length && !localStorage.getItem('dividnd_onboarded'))
     showOnboarding();
