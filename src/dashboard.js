@@ -2520,10 +2520,6 @@ function showPremiumCelebration() {
   const ov = $('ov-celebrate');
   if (!ov) return;
   ov.classList.add('open');
-  // Auto-dismiss after 5 seconds; progress bar tracks it
-  const bar = $('celebrate-progress');
-  if (bar) bar.style.animation = 'celebrate-drain 5s linear forwards';
-  setTimeout(() => closeOverlay('ov-celebrate'), 5000);
 }
 
 function _burstConfetti() {
@@ -3390,6 +3386,11 @@ function initEvents() {
   document.querySelectorAll('.overlay').forEach(ov =>
     ov.addEventListener('click', e => { if (e.target === ov) closeOverlay(ov.id); })
   );
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const open = document.querySelector('.overlay.open');
+    if (open) closeOverlay(open.id);
+  });
 }
 
 // ── INIT ─────────────────────────────────────────────────────
