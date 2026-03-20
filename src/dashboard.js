@@ -47,9 +47,12 @@ function getLimitsRemaining() {
 }
 
 function updateLimitsDisplay() {
-  if (isPremium()) return;
-  const { posRem } = getLimitsRemaining();
   const el = $('pos-remaining');
+  if (isPremium()) {
+    if (el) el.textContent = '';
+    return;
+  }
+  const { posRem } = getLimitsRemaining();
   if (el) {
     if (posRem === 0) {
       el.textContent = '(limit reached)';
@@ -1654,18 +1657,68 @@ function updatePlanUI() {
     badge.textContent = isPremium() ? 'Premium' : 'Free';
     badge.className   = `plan-badge ${isPremium() ? 'premium' : 'free'}`;
   }
-  const navBadge = $('nav-plan-badge');
-  const navBadgeInner = $('nav-plan-badge-inner');
-  if (navBadge && navBadgeInner) {
-    navBadge.style.display = '';
-    navBadgeInner.textContent = isPremium() ? 'Premium' : 'Free';
-    navBadgeInner.className = `plan-badge ${isPremium() ? 'premium' : 'free'}`;
-  }
   const actionBtn = $('plan-action-btn');
   if (actionBtn) {
     actionBtn.textContent = isPremium() ? 'Manage Billing' : 'Upgrade to Premium';
     actionBtn.onclick = isPremium() ? openBillingPortal : () => showUpgradeModal('portfolio');
   }
+  // Update profile avatar to reflect plan (accent ring = premium)
+  const avatarBtn = $('btn-profile');
+  if (avatarBtn) {
+    avatarBtn.style.background = isPremium() ? 'rgba(20,240,168,0.2)' : 'rgba(255,255,255,0.1)';
+    avatarBtn.style.color      = isPremium() ? 'var(--accent)' : 'var(--text)';
+    avatarBtn.style.boxShadow  = isPremium() ? '0 0 0 1.5px var(--accent)' : 'none';
+  }
+  updateLimitsDisplay();
+}
+
+function showProfileModal() {
+  const email = S.user?.email || '';
+  const meta  = S.user?.user_metadata || {};
+  const name  = meta.full_name || meta.name || '';
+  const initial = (name || email).charAt(0).toUpperCase() || '?';
+
+  const avatarEl = $('profile-avatar');
+  if (avatarEl) avatarEl.textContent = initial;
+
+  const nameEl = $('profile-name');
+  if (nameEl) nameEl.textContent = name || email;
+
+  const emailEl = $('profile-email');
+  if (emailEl) emailEl.textContent = name ? email : '';
+
+  const planBadge = $('profile-plan-badge');
+  if (planBadge) {
+    planBadge.textContent = isPremium() ? 'Premium' : 'Free';
+    planBadge.className   = `plan-badge ${isPremium() ? 'premium' : 'free'}`;
+  }
+
+  const features = $('profile-plan-features');
+  if (features) {
+    if (isPremium()) {
+      features.innerHTML = `
+        <div style="display:grid;gap:6px">
+          <span>✓ Unlimited portfolios</span>
+          <span>✓ Unlimited positions</span>
+          <span>✓ Sub-classes & target weights</span>
+          <span>✓ Trade lot tracking</span>
+          <span>✓ All future features included</span>
+        </div>`;
+    } else {
+      features.innerHTML = `
+        <div style="display:grid;gap:6px;margin-bottom:10px">
+          <span>✗ 1 portfolio · 5 positions</span>
+          <span style="color:rgba(255,255,255,0.3)">✗ Sub-classes locked</span>
+          <span style="color:rgba(255,255,255,0.3)">✗ Unlimited positions locked</span>
+        </div>
+        <div style="font-size:11px;color:var(--accent)">Upgrade for $7/mo to unlock everything →</div>`;
+    }
+  }
+
+  $('profile-upgrade-btn-wrap').style.display = isPremium() ? 'none' : '';
+  $('profile-billing-btn-wrap').style.display  = isPremium() ? '' : 'none';
+
+  $('ov-profile').classList.add('open');
 }
 
 function showUpgradeModal(reason) {
@@ -2273,11 +2326,15 @@ function initEvents() {
     renderEditor();
   });
 
-  $('btn-logout')?.addEventListener('click', async () => {
+  $('btn-profile')?.addEventListener('click', showProfileModal);
+
+  const signOutHandler = async () => {
     await S.db.auth.signOut();
     localStorage.removeItem('dividnd_current_id');
     window.location.href = '/';
-  });
+  };
+  $('btn-logout')?.addEventListener('click', signOutHandler);
+  $('profile-signout-btn')?.addEventListener('click', signOutHandler);
 
   $('btn-export')?.addEventListener('click', exportJSON);
   $('btn-import')?.addEventListener('click', () => $('import-file').click());
@@ -2332,6 +2389,12 @@ async function init() {
   if (!session) { window.location.href = '/auth.html'; return; }
   S.user = session.user;
 
+  // Set profile avatar initial
+  const _meta = session.user.user_metadata || {};
+  const _name = _meta.full_name || _meta.name || session.user.email || '';
+  const _avatarBtn = $('btn-profile');
+  if (_avatarBtn) _avatarBtn.textContent = _name.charAt(0).toUpperCase() || '?';
+
   $('app-shell').style.display = 'block';
   fetchFxRate();
   loadPlan(); // non-blocking — updates UI when resolved
@@ -2376,10 +2439,12 @@ async function init() {
 }
 
 // Expose to inline onclick handlers
+window.closeOverlay     = closeOverlay;
 window.showUpgradeModal = showUpgradeModal;
 window.setUpgradeToggle = setUpgradeToggle;
 window.handleCheckout   = handleCheckout;
 window.showTradeModal   = showTradeModal;
 window._setTradeType    = _setTradeType;
+window.openBillingPortal = openBillingPortal;
 
 init();
