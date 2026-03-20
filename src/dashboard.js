@@ -1309,32 +1309,49 @@ function _renderBenchChart() {
 
   const from = _statsPeriodFrom(_statsPeriod);
 
-  const spySorted = (allHist['SPY'] || [])
+  // Filter SPY to selected period; fall back to full history if not enough
+  let spySorted = (allHist['SPY'] || [])
     .filter(d => d.date >= from)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   if (spySorted.length < 2) {
-    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Not enough data for this period.</span>`;
+    spySorted = (allHist['SPY'] || [])
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  if (spySorted.length < 2) {
+    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Historical data unavailable — check your API key in Settings.</span>`;
     return;
   }
 
-  const dates = spySorted.map(d => d.date);
+  const allDates  = spySorted.map(d => d.date);
+  const allSpyVal = spySorted.map(d => d.close);
 
-  // Portfolio value per date using current share counts
-  const portVals = dates.map(date =>
+  // Portfolio value per date — 0 for dates where a position has no data yet
+  const allPortVal = allDates.map(date =>
     S.positions.reduce((sum, h) => {
       const entry = (allHist[h.symbol] || []).find(d => d.date === date);
       return sum + (entry ? entry.close * h.shares : 0);
     }, 0)
   );
-  const spyVals = spySorted.map(d => d.close);
 
-  // Normalize: % return from first point in period (both start at 0)
-  const p0 = portVals[0] || 1, s0 = spyVals[0] || 1;
+  // Trim to the first date where we actually have portfolio price data
+  const firstIdx = allPortVal.findIndex(v => v > 0);
+  if (firstIdx < 0 || firstIdx >= allPortVal.length - 1) {
+    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">No historical price data for your holdings yet.</span>`;
+    return;
+  }
+
+  const dates    = allDates.slice(firstIdx);
+  const portVals = allPortVal.slice(firstIdx);
+  const spyVals  = allSpyVal.slice(firstIdx);
+
+  // Normalize: both series start at 0%
+  const p0 = portVals[0], s0 = spyVals[0];
   const portNorm = portVals.map(v => (v / p0 - 1) * 100);
-  const spyNorm  = spyVals.map(v => (v / s0 - 1) * 100);
+  const spyNorm  = spyVals.map(v  => (v / s0 - 1) * 100);
 
-  // Period return stat cards (use historical closes for consistency with chart)
+  // Period return stat cards
   const portPeriodPct = portNorm[portNorm.length - 1];
   const spyPeriodPct  = spyNorm[spyNorm.length - 1];
   const portPeriodDol = portVals[portVals.length - 1] - portVals[0];
@@ -1348,7 +1365,12 @@ function _renderBenchChart() {
     if (cls) { el.className = el.className.replace(/\bc-(gain|loss|muted)\b/, ''); el.classList.add('c-' + cls); }
   };
 
-  const periodLabel = _statsPeriod === 'YTD' ? 'YTD Return' : `${_statsPeriod} Return`;
+  // If we're showing less than the requested period, reflect that in the label
+  const actualFrom  = dates[0];
+  const periodLabel = actualFrom > from
+    ? `Since ${new Date(actualFrom + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' })}`
+    : (_statsPeriod === 'YTD' ? 'YTD Return' : `${_statsPeriod} Return`);
+
   $('stat-period-label') && ($('stat-period-label').textContent = periodLabel);
   upd('stat-period-pct', f.pct(portPeriodPct), gc(portPeriodPct));
   upd('stat-period-dol', f.$(portPeriodDol));
