@@ -89,7 +89,8 @@ let _statsHistCache = null;   // { SYM: [{date,close},...], benchmark: [...] }
 let _divCalMonth    = new Date().getMonth();
 let _divCalYear     = new Date().getFullYear();
 let _divHistCache   = null;   // { SYM: [{date,dividend},...] }
-let _watchlist = []; // [{ id, symbol, note }]
+let _watchlist    = [];         // [{ id, symbol, note, target_price }]
+let _alertedSyms  = new Set(); // symbols toasted this session (prevents repeat)
 
 // Trade modal state
 let _tradeModalSymbol = null;
@@ -246,24 +247,22 @@ const DB = {
     return data || [];
   },
 
-  async upsertPosition(folioId, symbol, shares, avgCost, color, targetWeight, classId = null) {
+  async upsertPosition(folioId, symbol, shares, avgCost, color, targetWeight, classId = null, targetPrice = null) {
+    const payload = {
+      folio_id:      folioId,
+      symbol:        symbol.toUpperCase(),
+      shares,
+      avg_cost:      avgCost,
+      color,
+      target_weight: targetWeight ?? 0,
+      class_id:      classId || null,
+      updated_at:    new Date().toISOString(),
+    };
+    if (targetPrice != null) payload.target_price = targetPrice;
     const { data, error } = await S.db
       .from('positions')
-      .upsert(
-        {
-          folio_id:      folioId,
-          symbol:        symbol.toUpperCase(),
-          shares,
-          avg_cost:      avgCost,
-          color,
-          target_weight: targetWeight ?? 0,
-          class_id:      classId || null,
-          updated_at:    new Date().toISOString(),
-        },
-        { onConflict: 'folio_id,symbol' }
-      )
-      .select()
-      .single();
+      .upsert(payload, { onConflict: 'folio_id,symbol' })
+      .select().single();
     if (error) { handleDbError(error, `upsertPosition ${symbol}`); throw error; }
     return data;
   },
@@ -365,6 +364,10 @@ const DB = {
   async removeWatchlist(id) {
     const { error } = await S.db.from('watchlist').delete().eq('id', id);
     if (error) handleDbError(error, 'removeWatchlist');
+  },
+  async updateWatchlistTarget(id, targetPrice) {
+    const { error } = await S.db.from('watchlist').update({ target_price: targetPrice || null }).eq('id', id);
+    if (error) handleDbError(error, 'updateWatchlistTarget');
   },
 
   async recalcPositionFromTrades(folioId, symbol) {
@@ -806,6 +809,25 @@ function renderDash() {
 
   buildAllocChart(Port.rows());
   updateLimitsDisplay();
+  checkPriceAlerts();
+}
+
+function checkPriceAlerts() {
+  const fire = (key, symbol, tp, dir) => {
+    if (_alertedSyms.has(key)) return;
+    _alertedSyms.add(key);
+    toast(`${symbol} hit your target of ${f.$(tp)} ${dir}`);
+  };
+  S.positions.forEach(pos => {
+    const tp = pos.target_price; if (!tp) return;
+    const price = S.quotes[pos.symbol]?.price; if (!price) return;
+    if (price >= tp) fire(`pos_${pos.symbol}`, pos.symbol, tp, '↑');
+  });
+  _watchlist.forEach(w => {
+    const tp = w.target_price; if (!tp) return;
+    const price = S.quotes[w.symbol]?.price; if (!price) return;
+    if (price >= tp) fire(`wl_${w.symbol}`, w.symbol, tp, '↑');
+  });
 }
 
 function renderPositionRow(h, isClassed) {
@@ -838,6 +860,13 @@ function renderPositionRow(h, isClassed) {
       </td>
       <td class="mono col-divyield" style="text-align:right;color:var(--muted)">${allocCell}</td>
       <td style="text-align:right;padding-right:4px">
+        ${h.target_price ? (() => {
+          const tp = h.target_price, px = h.px;
+          const hit  = px != null && px >= tp;
+          const near = px != null && !hit && px >= tp * 0.97;
+          const col  = hit ? 'var(--gain)' : near ? '#f0c05b' : 'var(--muted)';
+          return `<div style="font-size:10px;color:${col};margin-bottom:3px" title="Price target">⊙ ${f.$(tp)}</div>`;
+        })() : ''}
         <button class="btn btn-ghost"
           style="font-size:11px;padding:4px 8px;white-space:nowrap"
           onclick="event.stopPropagation();showTradeModal('${h.symbol}')"
@@ -1519,6 +1548,12 @@ function _renderWatchlistTable() {
     const name   = q?.name               || '';
     const gc     = n => n == null ? '' : n >= 0 ? 'var(--gain)' : 'var(--loss)';
 
+    const tp     = w.target_price;
+    const hit    = tp && price != null && price >= tp;
+    const near   = tp && price != null && !hit && price >= tp * 0.97;
+    const tpCol  = hit ? 'var(--gain)' : near ? '#f0c05b' : 'var(--muted)';
+    const tpDisp = tp ? `<span style="color:${tpCol}">⊙ ${f.$(tp)}</span>` : '';
+
     return `<tr>
       <td>
         <div class="wl-sym">${w.symbol}</div>
@@ -1531,17 +1566,44 @@ function _renderWatchlistTable() {
       <td>${hi52 != null ? f.$(hi52) : '—'}</td>
       <td>${lo52 != null ? f.$(lo52) : '—'}</td>
       <td>${mktCap != null ? f.compact(mktCap) : '—'}</td>
-      <td><button class="wl-remove" onclick="removeFromWatchlist('${w.id}')" title="Remove">✕</button></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div>
+            ${tpDisp}
+            <input class="wl-target-input" type="number" placeholder="Target $" value="${tp ?? ''}"
+              min="0" step="any" data-id="${w.id}"
+              style="width:80px;padding:4px 6px;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:var(--mono);outline:none"
+              title="Set a price target — toast fires when price hits it">
+          </div>
+          <button class="wl-remove" onclick="removeFromWatchlist('${w.id}')" title="Remove">✕</button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 
   wrap.innerHTML = `<table class="wl-tbl">
     <thead><tr>
       <th>Symbol</th><th>Price</th><th>Chg $</th><th>Chg %</th>
-      <th>52W High</th><th>52W Low</th><th>Mkt Cap</th><th></th>
+      <th>52W High</th><th>52W Low</th><th>Mkt Cap</th><th>Target / Action</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+
+  // Wire target price inputs — save on blur or Enter
+  wrap.querySelectorAll('.wl-target-input').forEach(input => {
+    const save = async () => {
+      const id  = input.dataset.id;
+      const val = input.value !== '' ? parseFloat(input.value) : null;
+      const item = _watchlist.find(w => w.id === id);
+      if (!item || item.target_price === val) return;
+      item.target_price = val;
+      await DB.updateWatchlistTarget(id, val);
+      _alertedSyms.delete(`wl_${item.symbol}`); // reset so alert can re-fire
+      _renderWatchlistTable();
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+  });
 }
 
 async function addToWatchlist() {
@@ -2361,6 +2423,7 @@ function renderEditor() {
       <input type="number" class="hq" placeholder="Shares" value="${h.shares}" min="0" step="any">
       <input type="number" class="hc" placeholder="Avg $" value="${h.avg_cost}" min="0" step="any">
       <input type="number" class="ht" placeholder="10" value="${typeof h.target_weight === 'number' ? h.target_weight : 0}" min="0" max="100" step="0.1" title="Direct portfolio % (ungrouped) or intra-class % (when assigned to a class)">
+      <input type="number" class="htp" placeholder="Alert $" value="${h.target_price ?? ''}" min="0" step="any" title="Price target alert — toast fires when price reaches this">
       <select class="hcls">
         <option value="">— None —</option>
         ${editorClasses.map(c => `<option value="${c.id}" ${h.class_id === c.id ? 'selected' : ''}>${c.name || 'Unnamed'}</option>`).join('')}
@@ -2416,11 +2479,13 @@ async function savePositions() {
   const classIntraSums = {};
 
   domRows.forEach((r, i) => {
-    const sym     = r.querySelector('.hs').value.trim().toUpperCase();
-    const shares  = parseFloat(r.querySelector('.hq').value);
-    const cost    = parseFloat(r.querySelector('.hc').value);
-    const target  = parseFloat(r.querySelector('.ht').value);
-    const classId = r.querySelector('.hcls')?.value || null;
+    const sym        = r.querySelector('.hs').value.trim().toUpperCase();
+    const shares     = parseFloat(r.querySelector('.hq').value);
+    const cost       = parseFloat(r.querySelector('.hc').value);
+    const target     = parseFloat(r.querySelector('.ht').value);
+    const targetPriceRaw = r.querySelector('.htp')?.value;
+    const tp         = targetPriceRaw && targetPriceRaw !== '' ? parseFloat(targetPriceRaw) : null;
+    const classId    = r.querySelector('.hcls')?.value || null;
     if (sym && shares >= 0 && cost >= 0) {
       const existing = S.positions.find(p => p.symbol === sym);
       const color    = existing?.color || COLORS[i % COLORS.length];
@@ -2430,8 +2495,8 @@ async function savePositions() {
       } else {
         ungroupedTargetSum += tw;
       }
-      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color, target_weight: tw, class_id: classId || null });
-      posData.push({ sym, shares, cost, color, tw, classId: classId || null });
+      editorRows.push({ symbol: sym, shares, avg_cost: cost, folio_id: S.currentFolioId, color, target_weight: tw, class_id: classId || null, target_price: tp });
+      posData.push({ sym, shares, cost, color, tw, classId: classId || null, tp });
     }
   });
 
@@ -2470,7 +2535,7 @@ async function savePositions() {
 
     // Upsert positions
     await Promise.all(posData.map(p =>
-      DB.upsertPosition(S.currentFolioId, p.sym, p.shares, p.cost, p.color, p.tw, p.classId)
+      DB.upsertPosition(S.currentFolioId, p.sym, p.shares, p.cost, p.color, p.tw, p.classId, p.tp)
     ));
     S.positions   = await DB.listPositions(S.currentFolioId);
     S.classes     = await DB.listClasses(S.currentFolioId);
@@ -2548,6 +2613,7 @@ function closeOverlay(id) {
 async function loadAll() {
   _statsHistCache = null; // invalidate on every portfolio load
   _divHistCache   = null;
+  _alertedSyms    = new Set(); // reset price alerts on portfolio switch
   if (!S.currentFolioId) { S.classes = []; renderDash(); renderHoldings(); return; }
   try {
     S.positions = await DB.listPositions(S.currentFolioId);

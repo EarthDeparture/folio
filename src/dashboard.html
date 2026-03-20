@@ -302,7 +302,7 @@ input, select, button { font-family:var(--sans); }
 }
 
 /* ── SETTINGS EDITOR ── */
-.h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 140px 36px; gap:8px; align-items:center; margin-bottom:8px; }
+.h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 80px 140px 36px; gap:8px; align-items:center; margin-bottom:8px; }
 .h-row input {
   padding:9px 12px; background:var(--card); border:1px solid var(--border);
   border-radius:8px; color:var(--text); font-family:var(--mono);
@@ -325,7 +325,7 @@ input, select, button { font-family:var(--sans); }
 .set-section h3 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:12px; }
 .set-row { display:flex; gap:8px; margin-top:10px; align-items:flex-start; }
 .h-editor-header {
-  display:grid; grid-template-columns:100px 1fr 1fr 80px 140px 36px; gap:8px;
+  display:grid; grid-template-columns:100px 1fr 1fr 80px 80px 140px 36px; gap:8px;
   margin-bottom:6px; font-size:10px; font-weight:600; text-transform:uppercase;
   letter-spacing:.07em; color:var(--muted); padding:0 2px;
 }
@@ -971,7 +971,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
       <div class="set-section">
         <h3>Positions <span id="positions-limit-hint" style="font-weight:400;color:var(--muted);font-size:11px"></span></h3>
         <div class="h-editor-header">
-          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div>Target %</div><div>Class</div><div></div>
+          <div>Symbol</div><div>Shares</div><div>Avg Cost ($)</div><div>Target %</div><div>Alert $</div><div>Class</div><div></div>
         </div>
         <div id="h-editor"></div>
         <div class="set-row">

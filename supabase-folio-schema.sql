@@ -226,3 +226,8 @@ CREATE POLICY "watchlist_select" ON folio.watchlist FOR SELECT TO authenticated 
 CREATE POLICY "watchlist_insert" ON folio.watchlist FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "watchlist_delete" ON folio.watchlist FOR DELETE TO authenticated USING (user_id = auth.uid());
 CREATE POLICY "watchlist_update" ON folio.watchlist FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+-- ── PRICE TARGET ALERTS ─────────────────────────────────────────────────────
+-- Run these in Supabase SQL Editor to add price target columns
+ALTER TABLE folio.watchlist  ADD COLUMN IF NOT EXISTS target_price NUMERIC;
+ALTER TABLE folio.positions  ADD COLUMN IF NOT EXISTS target_price NUMERIC;
