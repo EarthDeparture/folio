@@ -83,7 +83,9 @@ let _rebTimer  = null;
 
 // Stats tab state
 let _statsPeriod    = 'YTD';
-let _statsHistCache = null;   // { SYM: [{date,close},...], SPY: [...] }
+let _benchmarkSym   = 'SPY';
+const BENCH_LABELS  = { 'SPY':'S&P 500 (SPY)', 'QQQ':'Nasdaq 100 (QQQ)', 'VTI':'Total Market (VTI)', 'GLD':'Gold (GLD)', 'BTC-USD':'Bitcoin (BTC)' };
+let _statsHistCache = null;   // { SYM: [{date,close},...], benchmark: [...] }
 let _divCalMonth    = new Date().getMonth();
 let _divCalYear     = new Date().getFullYear();
 let _divHistCache   = null;   // { SYM: [{date,dividend},...] }
@@ -1656,7 +1658,7 @@ async function renderStats() {
     if (!_statsHistCache) {
       const syms = S.positions.map(h => h.symbol);
       const hist = {};
-      await Promise.all([...syms, 'SPY'].map(async sym => {
+      await Promise.all([...syms, _benchmarkSym].map(async sym => {
         try { hist[sym] = await API.historical(sym); } catch(e) { hist[sym] = []; }
       }));
       _statsHistCache = hist;
@@ -1674,23 +1676,23 @@ function _renderBenchChart() {
 
   const from = _statsPeriodFrom(_statsPeriod);
 
-  // Filter SPY to selected period; fall back to full history if not enough
-  let spySorted = (allHist['SPY'] || [])
+  // Filter benchmark to selected period; fall back to full history if not enough
+  let benchSorted = (allHist[_benchmarkSym] || [])
     .filter(d => d.date >= from)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  if (spySorted.length < 2) {
-    spySorted = (allHist['SPY'] || [])
+  if (benchSorted.length < 2) {
+    benchSorted = (allHist[_benchmarkSym] || [])
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  if (spySorted.length < 2) {
+  if (benchSorted.length < 2) {
     if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Historical data unavailable — check your API key in Settings.</span>`;
     return;
   }
 
-  const allDates  = spySorted.map(d => d.date);
-  const allSpyVal = spySorted.map(d => d.close);
+  const allDates    = benchSorted.map(d => d.date);
+  const allBenchVal = benchSorted.map(d => d.close);
 
   // Portfolio value per date — 0 for dates where a position has no data yet
   const allPortVal = allDates.map(date =>
@@ -1707,20 +1709,20 @@ function _renderBenchChart() {
     return;
   }
 
-  const dates    = allDates.slice(firstIdx);
-  const portVals = allPortVal.slice(firstIdx);
-  const spyVals  = allSpyVal.slice(firstIdx);
+  const dates      = allDates.slice(firstIdx);
+  const portVals   = allPortVal.slice(firstIdx);
+  const benchVals  = allBenchVal.slice(firstIdx);
 
   // Normalize: both series start at 0%
-  const p0 = portVals[0], s0 = spyVals[0];
-  const portNorm = portVals.map(v => (v / p0 - 1) * 100);
-  const spyNorm  = spyVals.map(v  => (v / s0 - 1) * 100);
+  const p0 = portVals[0], b0 = benchVals[0];
+  const portNorm  = portVals.map(v  => (v / p0 - 1) * 100);
+  const benchNorm = benchVals.map(v => (v / b0 - 1) * 100);
 
   // Period return stat cards
-  const portPeriodPct = portNorm[portNorm.length - 1];
-  const spyPeriodPct  = spyNorm[spyNorm.length - 1];
-  const portPeriodDol = portVals[portVals.length - 1] - portVals[0];
-  const vsSpyDiff     = portPeriodPct - spyPeriodPct;
+  const portPeriodPct  = portNorm[portNorm.length - 1];
+  const benchPeriodPct = benchNorm[benchNorm.length - 1];
+  const portPeriodDol  = portVals[portVals.length - 1] - portVals[0];
+  const vsSpyDiff      = portPeriodPct - benchPeriodPct;
 
   const gc = n => n >= 0 ? 'gain' : 'loss';
   const upd = (id, text, cls) => {
@@ -1740,7 +1742,12 @@ function _renderBenchChart() {
   upd('stat-period-pct', f.pct(portPeriodPct), gc(portPeriodPct));
   upd('stat-period-dol', f.$(portPeriodDol));
   upd('stat-vs-spy',     (vsSpyDiff >= 0 ? '+' : '') + f.num(vsSpyDiff, 2) + 'pp', gc(vsSpyDiff));
-  $('stat-vs-spy-sub') && ($('stat-vs-spy-sub').textContent = `You: ${f.pct(portPeriodPct)} · SPY: ${f.pct(spyPeriodPct)}`);
+  $('stat-vs-spy-sub')   && ($('stat-vs-spy-sub').textContent   = `You: ${f.pct(portPeriodPct)} · ${_benchmarkSym}: ${f.pct(benchPeriodPct)}`);
+  $('stat-vs-bench-lbl') && ($('stat-vs-bench-lbl').textContent = `vs ${_benchmarkSym}`);
+
+  // Update dynamic labels
+  const benchLabel = BENCH_LABELS[_benchmarkSym] || _benchmarkSym;
+  $('bench-chart-title') && ($('bench-chart-title').textContent = `Portfolio vs ${benchLabel}`);
 
   // Build chart
   const labels = dates.map(d =>
@@ -1754,8 +1761,8 @@ function _renderBenchChart() {
       data: {
         labels,
         datasets: [
-          { label:'Your Portfolio', data:portNorm, borderColor:portPeriodPct>=0?'#14f0a8':'#f0486e', borderWidth:2, pointRadius:0, fill:false, tension:.35 },
-          { label:'S&P 500 (SPY)', data:spyNorm,  borderColor:'rgba(90,102,128,.8)', borderWidth:1.5, pointRadius:0, fill:false, tension:.35, borderDash:[4,3] },
+          { label:'Your Portfolio', data:portNorm,  borderColor:portPeriodPct>=0?'#14f0a8':'#f0486e', borderWidth:2,   pointRadius:0, fill:false, tension:.35 },
+          { label: BENCH_LABELS[_benchmarkSym] || _benchmarkSym, data:benchNorm, borderColor:'rgba(90,102,128,.8)',     borderWidth:1.5, pointRadius:0, fill:false, tension:.35, borderDash:[4,3] },
         ],
       },
       options: {
@@ -2750,6 +2757,25 @@ function initEvents() {
       btn.classList.add('active');
       _statsPeriod = btn.dataset.p;
       const loadingEl = $('bench-loading');
+      if (loadingEl) loadingEl.style.display = '';
+      _renderBenchChart();
+    });
+  });
+
+  document.querySelectorAll('.bench-sym-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sym = btn.dataset.sym;
+      if (sym === _benchmarkSym) return;
+      document.querySelectorAll('.bench-sym-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _benchmarkSym = sym;
+      const loadingEl = $('bench-loading');
+      // Fetch benchmark history if not yet in cache
+      if (_statsHistCache && !_statsHistCache[sym]) {
+        if (loadingEl) loadingEl.style.display = '';
+        try { _statsHistCache[sym] = await API.historical(sym); }
+        catch(e) { _statsHistCache[sym] = []; }
+      }
       if (loadingEl) loadingEl.style.display = '';
       _renderBenchChart();
     });

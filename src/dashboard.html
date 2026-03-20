@@ -471,6 +471,7 @@ input, select, button { font-family:var(--sans); }
 .stats-tab { padding:28px 0 48px; }
 .stats-row-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px; }
 .bench-wrap { position:relative; height:280px; }
+.bench-sym-row { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
 .stats-note { font-size:10px; color:var(--muted); text-align:right; margin-top:8px; }
 
 /* ── SUB-CLASSES ── */
@@ -738,7 +739,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
             <div class="sc-sub" id="stat-period-dol">—</div>
           </div>
           <div class="sc">
-            <div class="sc-lbl">vs S&amp;P 500</div>
+            <div class="sc-lbl" id="stat-vs-bench-lbl">vs S&amp;P 500</div>
             <div class="sc-val c-muted" id="stat-vs-spy">—</div>
             <div class="sc-sub" id="stat-vs-spy-sub">Loading…</div>
           </div>
@@ -757,7 +758,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
         <!-- Benchmark chart -->
         <div class="chart-card" style="margin-bottom:20px">
           <div class="chart-header">
-            <div class="chart-title">Portfolio vs S&amp;P 500</div>
+            <div class="chart-title" id="bench-chart-title">Portfolio vs S&amp;P 500</div>
             <div class="period-btns">
               <button class="stats-period-btn period-btn active" data-p="YTD">YTD</button>
               <button class="stats-period-btn period-btn" data-p="1M">1M</button>
@@ -766,11 +767,18 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
               <button class="stats-period-btn period-btn" data-p="1Y">1Y</button>
             </div>
           </div>
+          <div class="bench-sym-row">
+            <button class="bench-sym-btn period-btn active" data-sym="SPY">SPY</button>
+            <button class="bench-sym-btn period-btn" data-sym="QQQ">QQQ</button>
+            <button class="bench-sym-btn period-btn" data-sym="VTI">VTI</button>
+            <button class="bench-sym-btn period-btn" data-sym="GLD">GLD</button>
+            <button class="bench-sym-btn period-btn" data-sym="BTC-USD">BTC</button>
+          </div>
           <div class="bench-wrap">
             <canvas id="c-bench"></canvas>
             <div id="bench-loading" class="spinner-wrap" style="position:absolute;inset:0"><div class="spinner"></div></div>
           </div>
-          <div class="stats-note">Based on current share counts × historical closes. SPY used as S&amp;P 500 proxy.</div>
+          <div class="stats-note">Based on current share counts × historical closes.</div>
         </div>
 
         <!-- Position returns -->
