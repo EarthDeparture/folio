@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const { sb, user } = auth;
 
-  const { data } = await sb
+  const { data, error } = await sb
     .from('user_plans')
     .select('plan, current_period_end, cancel_at_period_end')
     .eq('user_id', user.id)
