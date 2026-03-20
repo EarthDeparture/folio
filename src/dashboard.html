@@ -638,7 +638,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
   <div class="tab" id="tab-calculator">
     <div class="wrap calc-tab">
       <div class="calc-grid">
-        <div>
+        <!-- Left column: both tools stacked -->
+        <div style="display:flex;flex-direction:column;gap:20px">
           <div class="calc-card">
             <h3>Future Value Calculator</h3>
 
@@ -677,32 +678,31 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
               <div class="res-item"><div class="rl">Dividends</div><div class="rv" id="r-divs">—</div></div>
             </div>
           </div>
+
+          <!-- What-If Simulator -->
+          <div class="calc-card">
+            <h3>What-If Simulator</h3>
+            <p style="font-size:12px;color:var(--muted);margin:-8px 0 18px;line-height:1.6">See how adding a position changes your allocation and income — no portfolio changes are made.</p>
+            <div class="fg">
+              <label>Symbol</label>
+              <input type="text" id="wi-symbol" placeholder="AAPL" maxlength="10" autocomplete="off" style="text-transform:uppercase">
+            </div>
+            <div class="fg">
+              <label>Amount ($)</label>
+              <input type="number" id="wi-amount" placeholder="1000" min="0" step="100">
+            </div>
+            <button class="btn btn-accent" id="btn-whatif" style="width:100%;justify-content:center">Simulate</button>
+            <div id="wi-result" style="margin-top:16px"></div>
+          </div>
         </div>
 
+        <!-- Right column: chart -->
         <div class="calc-chart-card">
           <div class="chart-title" style="margin-bottom:16px">Growth Projection</div>
           <div class="calc-chart-wrap">
             <canvas id="c-calc"></canvas>
           </div>
         </div>
-      </div>
-
-      <!-- What-If Simulator -->
-      <div class="calc-card" style="margin-top:24px;max-width:680px">
-        <h3>What-If Simulator</h3>
-        <p style="font-size:12px;color:var(--muted);margin:6px 0 18px">See how adding a position changes your allocation and income — no portfolio changes are made.</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:flex-end">
-          <div class="fg" style="margin:0">
-            <label>Symbol</label>
-            <input type="text" id="wi-symbol" placeholder="AAPL" maxlength="10" autocomplete="off" style="text-transform:uppercase">
-          </div>
-          <div class="fg" style="margin:0">
-            <label>Amount ($)</label>
-            <input type="number" id="wi-amount" placeholder="1000" min="0" step="100">
-          </div>
-          <button class="btn btn-accent" id="btn-whatif" style="white-space:nowrap">Simulate</button>
-        </div>
-        <div id="wi-result" style="margin-top:16px"></div>
       </div>
 
     </div>
