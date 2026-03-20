@@ -29,7 +29,7 @@ const S = {
   sortCol:        'value',
   sortDir:        -1,
   drip:           true,
-  charts:         { port: null, alloc: null, calc: null, stock: null, bench: null, posReturns: null },
+  charts:         { port: null, alloc: null, calc: null, stock: null, bench: null, posReturns: null, rolling: null },
   currency:       localStorage.getItem('dividnd_currency') || 'USD',
   fxRate:         1.0,
   showCombined:   localStorage.getItem('dividnd_combined') === 'true',
@@ -1842,6 +1842,100 @@ function _renderBenchChart() {
   }
 
   if (loadingEl) loadingEl.style.display = 'none';
+  _renderRollingReturns();
+}
+
+function _renderRollingReturns() {
+  const allHist = _statsHistCache;
+  if (!allHist || !S.positions.length) return;
+
+  // Build chronological list of all unique dates across all held symbols
+  const dateSet = new Set();
+  S.positions.forEach(pos => {
+    (allHist[pos.symbol] || []).forEach(d => dateSet.add(d.date));
+  });
+  const allDates = Array.from(dateSet).sort();
+  if (allDates.length < 2) return;
+
+  // Build lookup: date → { sym → close }
+  const lookup = {};
+  S.positions.forEach(pos => {
+    (allHist[pos.symbol] || []).forEach(d => {
+      if (!lookup[d.date]) lookup[d.date] = {};
+      lookup[d.date][pos.symbol] = d.close;
+    });
+  });
+
+  // Portfolio value per date (only dates where ALL positions have data)
+  const portByDate = {};
+  allDates.forEach(date => {
+    const dayData = lookup[date] || {};
+    const val = S.positions.reduce((s, pos) => {
+      const c = dayData[pos.symbol];
+      return c != null ? s + c * pos.shares : s;
+    }, 0);
+    if (val > 0) portByDate[date] = val;
+  });
+  const dates = allDates.filter(d => portByDate[d] != null);
+  if (dates.length < 2) return;
+
+  // Rolling return for window W days: return[i] = portVal[i] / portVal[j] - 1
+  // where j = the nearest date at least W calendar days before dates[i]
+  const computeRolling = (w) => {
+    return dates.map((date, i) => {
+      const cutoff = new Date(date + 'T00:00:00');
+      cutoff.setDate(cutoff.getDate() - w);
+      const cutoffStr = cutoff.toISOString().slice(0, 10);
+      // Find latest date at or before cutoff
+      let j = i - 1;
+      while (j >= 0 && dates[j] > cutoffStr) j--;
+      if (j < 0 || portByDate[dates[j]] == null) return null;
+      return (portByDate[date] / portByDate[dates[j]] - 1) * 100;
+    });
+  };
+
+  const r30  = computeRolling(30);
+  const r90  = computeRolling(90);
+  const r365 = computeRolling(365);
+
+  // Only show if we have some non-null data
+  const hasData = r365.some(v => v != null) || r90.some(v => v != null) || r30.some(v => v != null);
+  const card = $('rolling-card');
+  if (!hasData) { if (card) card.style.display = 'none'; return; }
+  if (card) card.style.display = '';
+
+  const labels = dates.map(d =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  );
+
+  if (S.charts.rolling) { S.charts.rolling.destroy(); S.charts.rolling = null; }
+  const canvas = $('c-rolling');
+  if (!canvas) return;
+
+  S.charts.rolling = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'30-day',  data:r30,  borderColor:'rgba(91,138,240,.9)',  borderWidth:1.5, pointRadius:0, fill:false, tension:.3, spanGaps:true },
+        { label:'90-day',  data:r90,  borderColor:'rgba(20,240,168,.85)', borderWidth:1.5, pointRadius:0, fill:false, tension:.3, spanGaps:true },
+        { label:'365-day', data:r365, borderColor:'rgba(240,192,91,.85)', borderWidth:2,   pointRadius:0, fill:false, tension:.3, spanGaps:true },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display:true, labels:{ boxWidth:12, font:{size:11}, color:'#5a6680', usePointStyle:true, pointStyleWidth:16 } },
+        tooltip: { ...TT, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y != null ? f.pct(c.parsed.y) : '—'}` } },
+      },
+      scales: {
+        x: { grid:{display:false}, ticks:{maxTicksLimit:6, font:{size:9}} },
+        y: { position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{font:{size:9}, callback:v => f.pct(v,1)},
+          afterDataLimits: axis => { axis.max = Math.max(axis.max, 1); axis.min = Math.min(axis.min, -1); },
+        },
+      },
+    },
+  });
 }
 
 // ── CALCULATOR ─────────────────────────────────────────────────

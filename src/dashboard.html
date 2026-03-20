@@ -800,6 +800,15 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
           <div class="stats-note">Based on current share counts × historical closes.</div>
         </div>
 
+        <!-- Rolling Returns -->
+        <div class="chart-card" id="rolling-card" style="margin-bottom:20px;display:none">
+          <div class="chart-title" style="margin-bottom:4px">Rolling Returns</div>
+          <div class="stats-note" style="text-align:left;margin-bottom:12px">Portfolio return over the trailing 30 / 90 / 365 calendar days at each date.</div>
+          <div style="position:relative;height:220px">
+            <canvas id="c-rolling"></canvas>
+          </div>
+        </div>
+
         <!-- Position returns -->
         <div class="chart-card">
           <div class="chart-title" style="margin-bottom:14px">Total Return by Position</div>
