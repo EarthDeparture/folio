@@ -1843,6 +1843,7 @@ function _renderBenchChart() {
 
   if (loadingEl) loadingEl.style.display = 'none';
   _renderRollingReturns();
+  _renderCorrelation();
 }
 
 function _renderRollingReturns() {
@@ -1936,6 +1937,106 @@ function _renderRollingReturns() {
       },
     },
   });
+}
+
+// ── PORTFOLIO CORRELATION ──────────────────────────────────────
+function _renderCorrelation() {
+  const card = $('corr-card');
+  const allHist = _statsHistCache;
+  if (!allHist || !card) return;
+
+  // Build daily return series per symbol using full history (not period-filtered)
+  const symsWithData = S.positions.map(p => p.symbol).filter(sym => {
+    const h = allHist[sym] || [];
+    return h.length >= 10;
+  });
+
+  if (symsWithData.length < 2) { card.style.display = 'none'; return; }
+
+  // Build date-aligned return series
+  const allDates = Array.from(
+    new Set(symsWithData.flatMap(sym => (allHist[sym] || []).map(d => d.date)))
+  ).sort();
+
+  // close lookup per symbol
+  const closeMap = {};
+  symsWithData.forEach(sym => {
+    closeMap[sym] = {};
+    (allHist[sym] || []).forEach(d => { closeMap[sym][d.date] = d.close; });
+  });
+
+  // Daily return for each date (skip first date — no previous)
+  const returns = {};
+  symsWithData.forEach(sym => { returns[sym] = []; });
+  for (let i = 1; i < allDates.length; i++) {
+    const d = allDates[i], dPrev = allDates[i - 1];
+    symsWithData.forEach(sym => {
+      const c = closeMap[sym][d], cp = closeMap[sym][dPrev];
+      returns[sym].push(c != null && cp != null && cp > 0 ? (c / cp - 1) : null);
+    });
+  }
+
+  // Pearson correlation between two series (skip null pairs)
+  function pearson(a, b) {
+    const pairs = a.map((v, i) => [v, b[i]]).filter(([x, y]) => x != null && y != null);
+    if (pairs.length < 5) return null;
+    const n = pairs.length;
+    const mx = pairs.reduce((s, [x]) => s + x, 0) / n;
+    const my = pairs.reduce((s, [, y]) => s + y, 0) / n;
+    let num = 0, dx2 = 0, dy2 = 0;
+    pairs.forEach(([x, y]) => { const dx = x - mx, dy = y - my; num += dx * dy; dx2 += dx * dx; dy2 += dy * dy; });
+    const denom = Math.sqrt(dx2 * dy2);
+    return denom === 0 ? null : num / denom;
+  }
+
+  const n = symsWithData.length;
+  const matrix = symsWithData.map((symA, i) =>
+    symsWithData.map((symB, j) => {
+      if (i === j) return 1;
+      return pearson(returns[symA], returns[symB]);
+    })
+  );
+
+  // Color interpolation: -1 → loss, 0 → neutral, +1 → gain
+  function corrColor(v) {
+    if (v == null) return 'var(--border)';
+    if (v === 1)  return 'rgba(20,240,168,.35)';
+    if (v >= 0) {
+      const t = v;
+      return `rgba(20,240,168,${(t * 0.6).toFixed(2)})`;
+    } else {
+      const t = -v;
+      return `rgba(240,72,110,${(t * 0.6).toFixed(2)})`;
+    }
+  }
+
+  const cellSize = Math.max(36, Math.min(60, Math.floor(420 / n)));
+  const headerCells = symsWithData.map(sym =>
+    `<div style="width:${cellSize}px;font-size:9px;font-weight:600;color:var(--muted);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sym}</div>`
+  ).join('');
+
+  const rows = matrix.map((row, i) => {
+    const cells = row.map((v, j) => {
+      const label = v != null ? f.num(v, 2) : '—';
+      const bg    = corrColor(v);
+      return `<div style="width:${cellSize}px;height:${cellSize}px;background:${bg};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);cursor:default" title="${symsWithData[i]} vs ${symsWithData[j]}: ${label}">${label}</div>`;
+    }).join('');
+    return `<div style="display:flex;gap:4px;align-items:center">
+      <div style="width:44px;font-size:9px;font-weight:600;color:var(--muted);text-align:right;padding-right:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${symsWithData[i]}</div>
+      ${cells}
+    </div>`;
+  }).join('');
+
+  card.style.display = '';
+  card.innerHTML = `
+    <div class="chart-title" style="margin-bottom:4px">Portfolio Correlation</div>
+    <div class="stats-note" style="text-align:left;margin-bottom:12px">Pairwise Pearson correlation of daily returns. Red = move together inversely, green = move together positively.</div>
+    <div style="overflow-x:auto">
+      <div style="display:inline-block">
+        <div style="display:flex;gap:4px;margin-bottom:4px;padding-left:50px">${headerCells}</div>
+        <div style="display:flex;flex-direction:column;gap:4px">${rows}</div>
+      </div>
+    </div>`;
 }
 
 // ── CALCULATOR ─────────────────────────────────────────────────
