@@ -2107,12 +2107,23 @@ function _renderCorrelation() {
 
   card.style.display = '';
   card.innerHTML = `
-    <div class="chart-title" style="margin-bottom:4px">Portfolio Correlation</div>
-    <div class="stats-note" style="text-align:left;margin-bottom:12px">Pairwise Pearson correlation of daily returns. Red = move together inversely, green = move together positively.</div>
-    <div style="overflow-x:auto">
-      <div style="display:inline-block">
-        <div style="display:flex;gap:4px;margin-bottom:4px;padding-left:50px">${headerCells}</div>
-        <div style="display:flex;flex-direction:column;gap:4px">${rows}</div>
+    <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex-shrink:0">
+        <div class="chart-title" style="margin-bottom:12px">Portfolio Correlation</div>
+        <div style="overflow-x:auto">
+          <div style="display:inline-block">
+            <div style="display:flex;gap:4px;margin-bottom:4px;padding-left:50px">${headerCells}</div>
+            <div style="display:flex;flex-direction:column;gap:4px">${rows}</div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:200px;padding:12px 14px;background:var(--adim);border:1px solid var(--ba);border-radius:10px;font-size:12px;color:var(--muted);line-height:1.75">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text);margin-bottom:8px">How to read this</div>
+        <p style="margin:0 0 8px">Each cell shows how closely two of your positions move together day-to-day — a value from <strong style="color:var(--text)">-1.0 to +1.0</strong>.</p>
+        <p style="margin:0 0 8px"><span style="color:#14f0a8;font-weight:600">Green (+1.0)</span> means the two stocks rise and fall together almost perfectly. Your portfolio is concentrated — a bad day for one means a bad day for the other.</p>
+        <p style="margin:0 0 8px"><span style="color:#f0486e;font-weight:600">Red (-1.0)</span> means they move in opposite directions — natural hedges against each other.</p>
+        <p style="margin:0 0 8px"><strong style="color:var(--text)">Near 0</strong> = little relationship — good diversification.</p>
+        <p style="margin:0"><span style="color:var(--text);font-weight:600">How to use it:</span> If most of your positions are deep green, consider adding uncorrelated assets (e.g. bonds, commodities, international stocks) to reduce portfolio-wide risk.</p>
       </div>
     </div>`;
 }
