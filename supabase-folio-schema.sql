@@ -207,3 +207,22 @@ CREATE POLICY "trades_update" ON folio.trades
 CREATE POLICY "trades_delete" ON folio.trades
   FOR DELETE TO authenticated
   USING (folio.is_portfolio_owned_by_current_user(folio_id));
+
+-- ── WATCHLIST ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS folio.watchlist (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  symbol     TEXT        NOT NULL CHECK (char_length(symbol) BETWEEN 1 AND 10),
+  note       TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_watchlist_user ON folio.watchlist(user_id);
+
+ALTER TABLE folio.watchlist ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "watchlist_select" ON folio.watchlist FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "watchlist_insert" ON folio.watchlist FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "watchlist_delete" ON folio.watchlist FOR DELETE TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "watchlist_update" ON folio.watchlist FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());

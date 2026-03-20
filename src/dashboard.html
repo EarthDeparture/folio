@@ -448,6 +448,25 @@ input, select, button { font-family:var(--sans); }
   .stats-row-4 { grid-template-columns:repeat(2,1fr); }
 }
 
+/* ── WATCHLIST TAB ── */
+.watchlist-tab { padding:28px 0 48px; }
+.wl-add-row { display:flex; gap:10px; margin-bottom:20px; }
+.wl-input { flex:1; padding:10px 14px; background:var(--card); border:1px solid var(--border); border-radius:10px; color:var(--text); font-family:var(--mono); font-size:13px; outline:none; text-transform:uppercase; transition:border-color .15s; }
+.wl-input::placeholder { text-transform:none; color:var(--muted); opacity:.6; }
+.wl-input:focus { border-color:var(--accent); }
+.wl-tbl { width:100%; border-collapse:collapse; }
+.wl-tbl th { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); padding:8px 14px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+.wl-tbl th:first-child { text-align:left; }
+.wl-tbl th:last-child { width:40px; }
+.wl-tbl td { padding:13px 14px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:right; font-family:var(--mono); font-size:13px; }
+.wl-tbl td:first-child { text-align:left; font-family:var(--sans); }
+.wl-tbl tr:hover td { background:rgba(255,255,255,0.02); }
+.wl-sym { font-weight:700; font-size:14px; letter-spacing:-.01em; }
+.wl-name { font-size:11px; color:var(--muted); margin-top:1px; }
+.wl-note { font-size:11px; color:var(--muted); font-family:var(--sans); margin-top:2px; font-style:italic; }
+.wl-remove { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:4px 8px; border-radius:6px; transition:all .15s; }
+.wl-remove:hover { color:var(--loss); background:rgba(240,72,110,.1); }
+
 /* ── STATS TAB ── */
 .stats-tab { padding:28px 0 48px; }
 .stats-row-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px; }
@@ -488,6 +507,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
         <button class="nav-btn" data-tab="stats">Stats</button>
         <button class="nav-btn" data-tab="calculator">Calculator</button>
         <button class="nav-btn" data-tab="rebalance">Rebalance</button>
+        <button class="nav-btn" data-tab="watchlist">Watchlist</button>
       </div>
 
       <div class="nav-actions">
@@ -855,6 +875,19 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
       </div><!-- /div-content -->
     </div>
   </div><!-- /tab-dividends -->
+
+  <!-- WATCHLIST TAB -->
+  <div class="tab" id="tab-watchlist">
+    <div class="wrap watchlist-tab">
+      <div class="wl-add-row">
+        <input type="text" id="wl-input" class="wl-input" placeholder="Enter ticker symbol (e.g. AAPL)" maxlength="10" autocomplete="off" autocorrect="off" spellcheck="false">
+        <button class="btn btn-accent" id="btn-wl-add" style="padding:10px 20px">+ Add</button>
+      </div>
+      <div id="wl-table-wrap">
+        <div class="spinner-wrap"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
 
 </div><!-- /app-shell -->
 

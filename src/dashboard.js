@@ -87,6 +87,7 @@ let _statsHistCache = null;   // { SYM: [{date,close},...], SPY: [...] }
 let _divCalMonth    = new Date().getMonth();
 let _divCalYear     = new Date().getFullYear();
 let _divHistCache   = null;   // { SYM: [{date,dividend},...] }
+let _watchlist = []; // [{ id, symbol, note }]
 
 // Trade modal state
 let _tradeModalSymbol = null;
@@ -347,6 +348,21 @@ const DB = {
   async deleteTrade(id) {
     const { error } = await S.db.from('trades').delete().eq('id', id);
     if (error) { handleDbError(error, `deleteTrade ${id}`); throw error; }
+  },
+
+  async listWatchlist() {
+    const { data, error } = await S.db.from('watchlist').select('*').order('created_at', { ascending: false });
+    if (error) { handleDbError(error, 'listWatchlist'); return []; }
+    return data || [];
+  },
+  async addWatchlist(symbol) {
+    const { data, error } = await S.db.from('watchlist').insert({ user_id: S.user.id, symbol: symbol.toUpperCase() }).select().single();
+    if (error) { handleDbError(error, 'addWatchlist'); throw error; }
+    return data;
+  },
+  async removeWatchlist(id) {
+    const { error } = await S.db.from('watchlist').delete().eq('id', id);
+    if (error) handleDbError(error, 'removeWatchlist');
   },
 
   async recalcPositionFromTrades(folioId, symbol) {
@@ -1455,6 +1471,109 @@ async function renderDividends() {
   _renderDivHistory(divPos);
 }
 
+// ── WATCHLIST TAB ──────────────────────────────────────────────
+
+async function renderWatchlist() {
+  const wrap = $('wl-table-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div></div>';
+
+  _watchlist = await DB.listWatchlist();
+
+  if (!_watchlist.length) {
+    wrap.innerHTML = `<div style="text-align:center;padding:60px 0;color:var(--muted)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px">Your watchlist is empty</div>
+      <div style="font-size:13px">Add ticker symbols above to start tracking.</div>
+    </div>`;
+    return;
+  }
+
+  _renderWatchlistTable(); // skeleton with cached data
+
+  // Fetch any missing quotes
+  await Promise.all(_watchlist.map(async w => {
+    if (S.quotes[w.symbol]?.price) return;
+    try {
+      const q = await API._oneQuote(w.symbol);
+      if (q) S.quotes[w.symbol] = q;
+    } catch(e) {}
+  }));
+
+  _renderWatchlistTable();
+}
+
+function _renderWatchlistTable() {
+  const wrap = $('wl-table-wrap');
+  if (!wrap || !_watchlist.length) return;
+
+  const rows = _watchlist.map(w => {
+    const q      = S.quotes[w.symbol];
+    const price  = q?.price               ?? null;
+    const chg    = q?.change              ?? null;
+    const chgPct = q?.changesPercentage   ?? null;
+    const hi52   = q?.yearHigh            ?? null;
+    const lo52   = q?.yearLow             ?? null;
+    const mktCap = q?.marketCap           ?? null;
+    const name   = q?.name               || '';
+    const gc     = n => n == null ? '' : n >= 0 ? 'var(--gain)' : 'var(--loss)';
+
+    return `<tr>
+      <td>
+        <div class="wl-sym">${w.symbol}</div>
+        ${name ? `<div class="wl-name">${name}</div>` : ''}
+        ${w.note ? `<div class="wl-note">"${w.note}"</div>` : ''}
+      </td>
+      <td style="color:var(--text);font-weight:600">${price != null ? f.$(price) : '—'}</td>
+      <td style="color:${gc(chg)}">${chg != null ? (chg >= 0 ? '+' : '') + f.$(Math.abs(chg)) : '—'}</td>
+      <td style="color:${gc(chgPct)}">${chgPct != null ? f.pct(chgPct) : '—'}</td>
+      <td>${hi52 != null ? f.$(hi52) : '—'}</td>
+      <td>${lo52 != null ? f.$(lo52) : '—'}</td>
+      <td>${mktCap != null ? f.compact(mktCap) : '—'}</td>
+      <td><button class="wl-remove" onclick="removeFromWatchlist('${w.id}')" title="Remove">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table class="wl-tbl">
+    <thead><tr>
+      <th>Symbol</th><th>Price</th><th>Chg $</th><th>Chg %</th>
+      <th>52W High</th><th>52W Low</th><th>Mkt Cap</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function addToWatchlist() {
+  const input = $('wl-input');
+  if (!input) return;
+  const sym = input.value.trim().toUpperCase().replace(/[^A-Z0-9.-]/g, '');
+  if (!sym) return;
+  if (_watchlist.some(w => w.symbol === sym)) {
+    toast(`${sym} is already in your watchlist`, 'error'); return;
+  }
+  try {
+    const item = await DB.addWatchlist(sym);
+    _watchlist.unshift(item);
+    input.value = '';
+    _renderWatchlistTable();
+    toast(`${sym} added to watchlist`);
+    // Fetch quote in background then re-render
+    try {
+      const q = await API._oneQuote(sym);
+      if (q) { S.quotes[sym] = q; _renderWatchlistTable(); }
+    } catch(e) {}
+  } catch(e) {
+    if (e?.code === '23505') toast(`${sym} is already in your watchlist`, 'error');
+    else toast('Could not add — check the ticker and try again', 'error');
+  }
+}
+
+async function removeFromWatchlist(id) {
+  await DB.removeWatchlist(id);
+  _watchlist = _watchlist.filter(w => w.id !== id);
+  if (_watchlist.length) _renderWatchlistTable();
+  else renderWatchlist();
+}
+
 function _statsPeriodFrom(period) {
   if (period === 'YTD') return `${new Date().getFullYear()}-01-01`;
   const days = { '1M':30, '3M':90, '6M':182, '1Y':365 }[period] || 30;
@@ -2517,6 +2636,7 @@ function initEvents() {
       if (btn.dataset.tab === 'calculator') runCalc();
       if (btn.dataset.tab === 'rebalance')  renderRebalance();
       if (btn.dataset.tab === 'dividends')  renderDividends();
+      if (btn.dataset.tab === 'watchlist')  renderWatchlist();
       if (btn.dataset.tab === 'stats')      renderStats();
     });
   });
@@ -2598,6 +2718,8 @@ function initEvents() {
 
   $('btn-profile')?.addEventListener('click', showProfileModal);
   $('btn-chart-style')?.addEventListener('click', togglePortChartStyle);
+  $('btn-wl-add')?.addEventListener('click', addToWatchlist);
+  $('wl-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addToWatchlist(); });
   $('div-cal-prev')?.addEventListener('click', () => {
     _divCalMonth--; if (_divCalMonth < 0) { _divCalMonth = 11; _divCalYear--; }
     _renderDivCalendar();
@@ -2718,7 +2840,8 @@ async function init() {
 }
 
 // Expose to inline onclick handlers
-window.closeOverlay     = closeOverlay;
+window.closeOverlay          = closeOverlay;
+window.removeFromWatchlist   = removeFromWatchlist;
 window.showUpgradeModal = showUpgradeModal;
 window.setUpgradeToggle = setUpgradeToggle;
 window.handleCheckout   = handleCheckout;
