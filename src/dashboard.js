@@ -29,7 +29,7 @@ const S = {
   sortCol:        'value',
   sortDir:        -1,
   drip:           true,
-  charts:         { port: null, alloc: null, calc: null, stock: null, bench: null, posReturns: null, rolling: null },
+  charts:         { port: null, alloc: null, calc: null, stock: null, bench: null, posReturns: null, rolling: null, drip: null },
   currency:       localStorage.getItem('dividnd_currency') || 'USD',
   fxRate:         1.0,
   showCombined:   localStorage.getItem('dividnd_combined') === 'true',
@@ -1500,6 +1500,84 @@ async function renderDividends() {
   _renderDivCalendar();
   // Render history table
   _renderDivHistory(divPos);
+
+  // Pre-fill DRIP start with current portfolio value, then render
+  const dripStart = $('drip-start');
+  if (dripStart && (!dripStart.value || parseFloat(dripStart.value) === 0)) {
+    dripStart.value = Math.round(portValue);
+  }
+  _renderDripProjection(portYield, annualIncome);
+}
+
+function _renderDripProjection(portYield, annualIncome) {
+  const canvas = $('c-drip');
+  if (!canvas) return;
+
+  const annRet    = parseFloat($('drip-return')?.value) || 7;
+  const years     = parseInt($('drip-years')?.value) || 20;
+  const startVal  = parseFloat($('drip-start')?.value) || Port.value();
+  if (startVal <= 0) return;
+
+  const monthlyRet = annRet / 100 / 12;
+  const monthlyDiv = (portYield / 100) / 12;
+  const months     = years * 12;
+
+  let dripVal = startVal, cashPortVal = startVal, cashAccum = 0;
+  const dripSeries = [startVal], cashSeries = [startVal];
+  const labels = ['Now'];
+
+  for (let m = 1; m <= months; m++) {
+    dripVal    *= (1 + monthlyRet + monthlyDiv);
+    cashPortVal *= (1 + monthlyRet);
+    cashAccum  += cashPortVal * monthlyDiv;
+    if (m % 12 === 0) {
+      dripSeries.push(dripVal);
+      cashSeries.push(cashPortVal + cashAccum);
+      labels.push(`Yr ${m / 12}`);
+    }
+  }
+
+  const dripFinal = dripSeries[dripSeries.length - 1];
+  const cashFinal = cashSeries[cashSeries.length - 1];
+  const advantage = dripFinal - cashFinal;
+
+  // Stat cards
+  const statRow = $('drip-stat-row');
+  if (statRow) {
+    statRow.innerHTML = [
+      ['DRIP Final Value', f.$(dripFinal), 'gain'],
+      ['Cash Final Value', f.$(cashFinal), 'muted'],
+      ['DRIP Advantage', f.$(advantage) + ` (+${f.pct(advantage/cashFinal*100)})`, 'gain'],
+    ].map(([lbl, val, cls]) => `
+      <div class="sc" style="padding:12px 14px">
+        <div class="sc-lbl">${lbl}</div>
+        <div class="sc-val c-${cls}">${val}</div>
+        <div class="sc-sub" style="font-size:10px">${years}y projection · ${f.num(portYield, 2)}% yield</div>
+      </div>`).join('');
+  }
+
+  if (S.charts.drip) { S.charts.drip.destroy(); S.charts.drip = null; }
+  S.charts.drip = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'With DRIP',         data:dripSeries, borderColor:'#14f0a8', borderWidth:2,   pointRadius:0, fill:false, tension:.35 },
+        { label:'Cash (no reinvest)', data:cashSeries, borderColor:'rgba(90,102,128,.8)', borderWidth:1.5, pointRadius:0, fill:false, tension:.35, borderDash:[4,3] },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display:true, labels:{ boxWidth:12, font:{size:11}, color:'#5a6680', usePointStyle:true, pointStyleWidth:16 } },
+        tooltip: { ...TT, callbacks: { label: c => ` ${c.dataset.label}: ${f.$(c.parsed.y)}` } },
+      },
+      scales: {
+        x: { grid:{display:false}, ticks:{maxTicksLimit:10, font:{size:9}} },
+        y: { position:'right', grid:{color:'rgba(255,255,255,0.04)'}, ticks:{font:{size:9}, callback:v => f.compact(v)} },
+      },
+    },
+  });
 }
 
 // ── WATCHLIST TAB ──────────────────────────────────────────────
@@ -3222,6 +3300,14 @@ function initEvents() {
   $('btn-whatif')?.addEventListener('click', runWhatIf);
   $('wi-symbol')?.addEventListener('keydown', e => { if (e.key === 'Enter') runWhatIf(); });
   $('wi-amount')?.addEventListener('keydown', e => { if (e.key === 'Enter') runWhatIf(); });
+
+  ['drip-return', 'drip-years', 'drip-start'].forEach(id =>
+    $(id)?.addEventListener('input', () => {
+      const divPos = _getDivPositions();
+      const portYield = Port.value() > 0 ? (divPos.reduce((s,p) => s + p.annualIncome, 0) / Port.value()) * 100 : 0;
+      _renderDripProjection(portYield, divPos.reduce((s,p) => s + p.annualIncome, 0));
+    })
+  );
   $('drip-toggle')?.addEventListener('click', e => {
     S.drip = !S.drip;
     e.currentTarget.classList.toggle('on', S.drip);
