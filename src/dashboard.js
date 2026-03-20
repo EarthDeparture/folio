@@ -1640,33 +1640,12 @@ async function deleteFolio(id, name) {
 async function loadPlan() {
   try {
     const data = await proxyFetch('/api/subscription');
-    console.log('[DIVIDND] Plan API response:', data);
-    if (data.error) {
-      console.error('[DIVIDND] API returned error:', data.error, data.details);
-      S.plan = 'free';
-    } else {
-      S.plan = data?.plan || 'free';
-    }
-    console.log('[DIVIDND] S.plan set to:', S.plan);
+    S.plan = data?.plan || 'free';
   } catch(e) { 
-    console.error('[DIVIDND] loadPlan error:', e.message, e);
+    console.error('[DIVIDND] loadPlan error:', e);
     S.plan = 'free'; 
   }
   updatePlanUI();
-}
-
-async function debugPlan() {
-  if (!S.user?.id) { console.log('Not logged in'); return; }
-  console.log('[DIVIDND] Current user ID from JWT:', S.user.id);
-  console.log('[DIVIDND] Current user email:', S.user.email);
-  const { data, error } = await S.db
-    .from('user_plans')
-    .select('*')
-    .eq('user_id', S.user.id)
-    .single();
-  console.log('[DIVIDND] Direct DB query result:', data);
-  console.log('[DIVIDND] Direct DB query error:', error);
-  return data;
 }
 
 function updatePlanUI() {

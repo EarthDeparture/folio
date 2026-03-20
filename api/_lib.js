@@ -27,8 +27,7 @@ export async function authenticate(req, res) {
 
   const sb = createClient(
     process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { db: { schema: 'folio' } }
+    process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
   const { data: { user }, error } = await sb.auth.getUser(token);
