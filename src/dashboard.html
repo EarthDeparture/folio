@@ -302,6 +302,9 @@ input, select, button { font-family:var(--sans); }
 }
 .onb-dot { width:8px; height:8px; border-radius:50%; background:var(--border); transition:background .2s; }
 .onb-dot.active { background:var(--accent); }
+.celebrate-feat { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--text); background:var(--adim); border:1px solid var(--ba); border-radius:8px; padding:9px 12px; }
+.celebrate-check { color:var(--accent); font-weight:700; flex-shrink:0; }
+@keyframes celebrate-drain { from { width:100% } to { width:0% } }
 
 /* ── SETTINGS EDITOR ── */
 .h-row { display:grid; grid-template-columns:100px 1fr 1fr 80px 80px 140px 36px; gap:8px; align-items:center; margin-bottom:8px; }
@@ -1283,6 +1286,29 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(0.6); curs
         </div>
       </div>
       <button class="btn btn-accent" id="btn-onb-done" style="width:100%;justify-content:center;padding:12px">Go to Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- Premium Celebration -->
+<div class="overlay" id="ov-celebrate" style="pointer-events:none">
+  <div class="modal modal-sm" style="pointer-events:auto;text-align:center;padding:0;overflow:hidden;border:1px solid rgba(20,240,168,.35);box-shadow:0 0 40px rgba(20,240,168,.12)">
+    <div style="padding:32px 28px 24px">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(20,240,168,.15);border:1.5px solid rgba(20,240,168,.4);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px">★</div>
+      <div style="font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px">You're Premium!</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:20px">All features are now unlocked. Here's what you just gained access to:</div>
+      <div style="display:flex;flex-direction:column;gap:8px;text-align:left;margin-bottom:24px">
+        <div class="celebrate-feat"><span class="celebrate-check">✓</span>Unlimited portfolios &amp; positions</div>
+        <div class="celebrate-feat"><span class="celebrate-check">✓</span>Sub-classes &amp; advanced allocation</div>
+        <div class="celebrate-feat"><span class="celebrate-check">✓</span>Portfolio correlation &amp; rolling returns</div>
+        <div class="celebrate-feat"><span class="celebrate-check">✓</span>Dividend income calendar &amp; DRIP projection</div>
+        <div class="celebrate-feat"><span class="celebrate-check">✓</span>Price target alerts &amp; watchlist</div>
+      </div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center;padding:12px;font-size:14px" onclick="closeOverlay('ov-celebrate')">Let's go →</button>
+    </div>
+    <!-- Auto-dismiss progress bar -->
+    <div style="height:3px;background:var(--border)">
+      <div id="celebrate-progress" style="height:100%;background:var(--accent);width:100%"></div>
     </div>
   </div>
 </div>

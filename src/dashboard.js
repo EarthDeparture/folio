@@ -2502,6 +2502,54 @@ function updatePlanUI() {
     avatarBtn.style.boxShadow  = isPremium() ? '0 0 0 1.5px var(--accent)' : 'none';
   }
   updateLimitsDisplay();
+
+  // One-time premium upgrade celebration
+  // Fires only when: plan is premium, last seen plan was 'free', and not yet celebrated
+  const planSeen = localStorage.getItem('dividnd_plan_seen');
+  if (isPremium() && planSeen === 'free' && !localStorage.getItem('dividnd_celebrated')) {
+    // Small delay so the dashboard renders first
+    setTimeout(showPremiumCelebration, 600);
+  }
+  localStorage.setItem('dividnd_plan_seen', S.plan);
+}
+
+function showPremiumCelebration() {
+  localStorage.setItem('dividnd_celebrated', '1');
+  localStorage.setItem('dividnd_plan_seen', 'premium');
+  _burstConfetti();
+  const ov = $('ov-celebrate');
+  if (!ov) return;
+  ov.classList.add('open');
+  // Auto-dismiss after 5 seconds; progress bar tracks it
+  const bar = $('celebrate-progress');
+  if (bar) bar.style.animation = 'celebrate-drain 5s linear forwards';
+  setTimeout(() => closeOverlay('ov-celebrate'), 5000);
+}
+
+function _burstConfetti() {
+  const colors = ['#14f0a8','#5b8af0','#f0c05b','#f05b8a','#a05bf0','#5be8f0','#f0905b'];
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9998;overflow:hidden';
+  for (let i = 0; i < 70; i++) {
+    const el    = document.createElement('div');
+    const color = colors[i % colors.length];
+    const x     = Math.random() * 100;
+    const delay = Math.random() * 1000;
+    const dur   = 2200 + Math.random() * 1800;
+    const size  = 6 + Math.random() * 7;
+    const drift = (Math.random() - 0.5) * 300;
+    const rot   = Math.random() * 900;
+    const round = Math.random() > 0.5;
+    el.style.cssText = `position:absolute;left:${x}vw;top:-16px;width:${size}px;height:${size * (round ? 1 : 0.45)}px;background:${color};border-radius:${round ? '50%' : '3px'};opacity:1`;
+    el.animate(
+      [{ transform: `translateY(0) translateX(0) rotate(0deg)`, opacity: 1 },
+       { transform: `translateY(105vh) translateX(${drift}px) rotate(${rot}deg)`, opacity: 0 }],
+      { duration: dur, delay, easing: 'ease-in', fill: 'forwards' }
+    );
+    wrap.appendChild(el);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 5500);
 }
 
 function showProfileModal() {
@@ -3388,9 +3436,11 @@ async function init() {
   if (!S.portfolios.length && !localStorage.getItem('dividnd_onboarded'))
     showOnboarding();
 
-  // Post-checkout success redirect
+  // Post-checkout success redirect — prime the celebration guard so it fires
+  // when loadPlan() resolves and updatePlanUI() sees free→premium transition
   if (new URLSearchParams(location.search).get('upgraded') === '1') {
-    toast('Welcome to Premium!', 'info');
+    localStorage.setItem('dividnd_plan_seen', 'free');
+    localStorage.removeItem('dividnd_celebrated');
     history.replaceState({}, '', '/dashboard.html');
   }
 
