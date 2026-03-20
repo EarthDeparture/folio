@@ -1641,10 +1641,15 @@ async function loadPlan() {
   try {
     const data = await proxyFetch('/api/subscription');
     console.log('[DIVIDND] Plan API response:', data);
-    S.plan = data?.plan || 'free';
+    if (data.error) {
+      console.error('[DIVIDND] API returned error:', data.error, data.details);
+      S.plan = 'free';
+    } else {
+      S.plan = data?.plan || 'free';
+    }
     console.log('[DIVIDND] S.plan set to:', S.plan);
   } catch(e) { 
-    console.error('[DIVIDND] loadPlan error:', e);
+    console.error('[DIVIDND] loadPlan error:', e.message, e);
     S.plan = 'free'; 
   }
   updatePlanUI();
@@ -1652,13 +1657,15 @@ async function loadPlan() {
 
 async function debugPlan() {
   if (!S.user?.id) { console.log('Not logged in'); return; }
-  console.log('[DIVIDND] Current user ID:', S.user.id);
-  const { data } = await S.db
+  console.log('[DIVIDND] Current user ID from JWT:', S.user.id);
+  console.log('[DIVIDND] Current user email:', S.user.email);
+  const { data, error } = await S.db
     .from('user_plans')
     .select('*')
     .eq('user_id', S.user.id)
     .single();
   console.log('[DIVIDND] Direct DB query result:', data);
+  console.log('[DIVIDND] Direct DB query error:', error);
   return data;
 }
 
