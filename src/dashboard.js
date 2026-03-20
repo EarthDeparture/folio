@@ -1640,9 +1640,26 @@ async function deleteFolio(id, name) {
 async function loadPlan() {
   try {
     const data = await proxyFetch('/api/subscription');
-    S.plan = data.plan || 'free';
-  } catch(e) { S.plan = 'free'; }
+    console.log('[DIVIDND] Plan API response:', data);
+    S.plan = data?.plan || 'free';
+    console.log('[DIVIDND] S.plan set to:', S.plan);
+  } catch(e) { 
+    console.error('[DIVIDND] loadPlan error:', e);
+    S.plan = 'free'; 
+  }
   updatePlanUI();
+}
+
+async function debugPlan() {
+  if (!S.user?.id) { console.log('Not logged in'); return; }
+  console.log('[DIVIDND] Current user ID:', S.user.id);
+  const { data } = await S.db
+    .from('user_plans')
+    .select('*')
+    .eq('user_id', S.user.id)
+    .single();
+  console.log('[DIVIDND] Direct DB query result:', data);
+  return data;
 }
 
 function updatePlanUI() {

@@ -7,11 +7,20 @@ export default async function handler(req, res) {
   if (!auth) return;
   const { sb, user } = auth;
 
-  const { data } = await sb
+  console.log('[subscription API] user.id:', user.id);
+
+  const { data, error } = await sb
     .from('user_plans')
     .select('plan, current_period_end, cancel_at_period_end')
     .eq('user_id', user.id)
     .single();
+
+  if (error) {
+    console.error('[subscription API] DB error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  console.log('[subscription API] query result:', data);
 
   if (!data) return res.json({ plan: 'free' });
 
