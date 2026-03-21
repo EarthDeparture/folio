@@ -72,17 +72,19 @@ export default async function handler(req, res) {
 
   if (!overview) return res.json({ overview: null });
 
-  // Update Supabase quotes cache with real dividend yield
-  await sb.from('quotes').upsert({
-    symbol,
-    name:           overview.name,
-    dividend_yield: overview.dividendYield,
-    pe:             overview.pe,
-    market_cap:     overview.marketCap,
-    year_high:      overview.yearHigh,
-    year_low:       overview.yearLow,
-    cached_at:      new Date().toISOString(),
-  }, { onConflict: 'symbol', ignoreDuplicates: false });
+  // UPDATE only — never INSERT — so we never create a null-price row.
+  // The price column is owned by /api/quote; overview only enriches existing rows.
+  await sb.from('quotes')
+    .update({
+      name:           overview.name,
+      dividend_yield: overview.dividendYield,
+      pe:             overview.pe,
+      market_cap:     overview.marketCap,
+      year_high:      overview.yearHigh,
+      year_low:       overview.yearLow,
+      cached_at:      new Date().toISOString(),
+    })
+    .eq('symbol', symbol);
 
   res.json({ overview });
 }

@@ -206,9 +206,22 @@ const Cache = {
   },
   clearQuotes() {
     Object.keys(localStorage)
-      .filter(k => k.startsWith('dividnd_c_q1_') || k.startsWith('dividnd_c_h_') || k.startsWith('dividnd_c_div_'))
+      .filter(k => k.startsWith('dividnd_c_q1_') || k.startsWith('dividnd_c_h_') || k.startsWith('dividnd_c_div_') || k.startsWith('dividnd_c_ov_'))
       .forEach(k => localStorage.removeItem(k));
     toast('Quote cache cleared');
+  },
+  // Remove any previously-cached quote entries where price was null.
+  // These were created by a bug where api/overview's upsert wrote null-price
+  // rows to the DB which then got cached client-side for 24 hours.
+  purgeNullPrices() {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('dividnd_c_q1_'))
+      .forEach(k => {
+        try {
+          const c = JSON.parse(localStorage.getItem(k));
+          if (c?.d?.price == null) localStorage.removeItem(k);
+        } catch {}
+      });
   },
 };
 
@@ -404,7 +417,8 @@ const DB = {
         .select('*')
         .eq('symbol', symbol.toUpperCase())
         .maybeSingle();
-      if (error || !data) return null;
+      // Treat null price as a cache miss — forces a live API fetch
+      if (error || !data || data.price == null) return null;
       if (maxAgeMs && data.cached_at) {
         const age = Date.now() - new Date(data.cached_at).getTime();
         if (age > maxAgeMs) return null;
@@ -3218,11 +3232,16 @@ async function loadAll() {
           yearLow:           r.year_low ?? null,
           dividendYield:     r.dividend_yield ?? 0,
         };
-        Cache.set('q1_' + r.symbol, S.quotes[r.symbol], CACHE_Q);
+        // Only cache rows that have a real price — null-price rows must not
+        // poison the localStorage cache or Step 2's API._oneQuote() will
+        // return the null immediately (cache hit) and skip the live fetch.
+        if (r.price != null) {
+          Cache.set('q1_' + r.symbol, S.quotes[r.symbol], CACHE_Q);
+        }
       });
-      hasCached = true;
-      renderDash();
-      renderHoldings();
+      // Only mark as cached if at least one symbol has a real price
+      hasCached = rows.some(r => r.price != null);
+      if (hasCached) { renderDash(); renderHoldings(); }
     }
   } catch(e) {
     // Non-fatal: fall through to API path
@@ -3466,6 +3485,7 @@ function initEvents() {
 
 // ── INIT ─────────────────────────────────────────────────────
 async function init() {
+  Cache.purgeNullPrices(); // one-time cleanup of any previously poisoned cache entries
   initDB();
   initEvents();
 
