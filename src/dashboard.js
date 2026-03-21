@@ -107,6 +107,9 @@ const COLORS = [
 
 // ── HELPERS ────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
+
+// HTML-escape user-controlled strings before inserting into innerHTML
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const f = {
@@ -1051,7 +1054,7 @@ async function openStock(symbol) {
     }
   } catch(e) {
     const el = $('stk-loading');
-    if (el) el.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable: ${e.message}</span>`;
+    if (el) el.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable</span>`;
   }
 
   // Load dividends
@@ -1064,7 +1067,7 @@ async function openStock(symbol) {
       : `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">No dividend history available</p>`;
   } catch(e) {
     const el = $('stk-divs');
-    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">${e.message.includes('limit') ? 'API rate limit reached' : `Could not load dividends: ${e.message}`}</p>`;
+    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:14px">Could not load dividend history</p>`;
   }
 
   // Load trade history
@@ -1688,9 +1691,9 @@ function _renderWatchlistTable() {
 
     return `<tr>
       <td>
-        <div class="wl-sym">${w.symbol}</div>
-        ${name ? `<div class="wl-name">${name}</div>` : ''}
-        ${w.note ? `<div class="wl-note">"${w.note}"</div>` : ''}
+        <div class="wl-sym">${esc(w.symbol)}</div>
+        ${name ? `<div class="wl-name">${esc(name)}</div>` : ''}
+        ${w.note ? `<div class="wl-note">"${esc(w.note)}"</div>` : ''}
       </td>
       <td style="color:var(--text);font-weight:600">${price != null ? f.$(price) : '—'}</td>
       <td style="color:${gc(chg)}">${chg != null ? (chg >= 0 ? '+' : '') + f.$(Math.abs(chg)) : '—'}</td>
@@ -1859,7 +1862,7 @@ async function renderStats() {
     }
     _renderBenchChart();
   } catch(e) {
-    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable: ${e.message}</span>`;
+    if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--muted);font-size:12px">Chart unavailable</span>`;
   }
 }
 
@@ -2476,14 +2479,14 @@ async function renderFolioList() {
     list.innerHTML = limitWarning + S.portfolios.map(p => `
       <div class="folio-item ${p.id === S.currentFolioId ? 'active' : ''}" data-id="${p.id}">
         <div>
-          <div class="fi-name">${p.name}</div>
+          <div class="fi-name">${esc(p.name)}</div>
           <div class="fi-meta">Created ${new Date(p.created_at).toLocaleDateString()}</div>
         </div>
         <div class="folio-actions">
           ${p.id !== S.currentFolioId
             ? `<button class="btn btn-sm folio-select" data-id="${p.id}">Select</button>`
             : '<span style="font-size:11px;color:var(--accent);font-weight:600">Active</span>'}
-          <button class="btn btn-sm btn-danger folio-delete" data-id="${p.id}" data-name="${p.name.replace(/"/g, '&quot;')}">Delete</button>
+          <button class="btn btn-sm btn-danger folio-delete" data-id="${p.id}" data-name="${esc(p.name)}">Delete</button>
         </div>
       </div>`).join('');
 
@@ -2498,7 +2501,7 @@ async function renderFolioList() {
       btn.addEventListener('click', () => deleteFolio(btn.dataset.id, btn.dataset.name))
     );
   } catch(e) {
-    list.innerHTML = `<p style="color:var(--loss);font-size:13px;padding:16px">Error: ${e.message}</p>`;
+    list.innerHTML = `<p style="color:var(--loss);font-size:13px;padding:16px">Could not load portfolios</p>`;
   }
 }
 

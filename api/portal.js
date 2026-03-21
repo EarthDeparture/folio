@@ -10,8 +10,6 @@ export default async function handler(req, res) {
   if (!auth) return;
   const { sb, user } = auth;
 
-  const { returnUrl } = req.body || {};
-
   const { data: plan } = await sb
     .from('user_plans')
     .select('stripe_customer_id')
@@ -24,7 +22,7 @@ export default async function handler(req, res) {
 
   const session = await stripe.billingPortal.sessions.create({
     customer:   plan.stripe_customer_id,
-    return_url: returnUrl || process.env.APP_URL || 'https://dividnd.com/dashboard.html',
+    return_url: process.env.APP_URL || 'https://dividnd.com/dashboard.html',
   });
 
   res.json({ url: session.url });

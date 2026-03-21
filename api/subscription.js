@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     .eq('user_id', user.id)
     .single();
 
-  if (!data) return res.json({ plan: 'free', _debug: { userId: user.id, error: error?.message } });
+  if (!data) return res.json({ plan: 'free' });
 
   res.json({
     plan:               data.plan,
