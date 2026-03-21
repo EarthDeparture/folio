@@ -134,6 +134,8 @@ async function fetchFxRate() {
     if (rate) {
       S.fxRate = rate;
       Cache.set('fx_usd_cad', rate, 24 * 60 * 60 * 1000);
+      // Re-render if CAD is active so the freshly-loaded rate takes effect
+      if (S.currency === 'CAD') renderDash();
     }
   } catch(e) {
     console.warn('[DIVIDND] FX rate fetch failed:', e.message);
@@ -842,11 +844,11 @@ function renderDash() {
   set('s-allgain',
     S.showCombined
       ? `${S.portfolios.length} portfolio${S.portfolios.length !== 1 ? 's' : ''}`
-      : `${f.$(allG)} (${f.pct(allPct)})`,
+      : `${fxFmt(allG)} (${f.pct(allPct)})`,
     S.showCombined ? 'var(--muted)' : gc(allG));
-  set('s-daygain',    f.$(dayG),                       gc(dayG));
-  set('s-daypct',     f.pct(dayPct) + ' vs. yesterday', gc(dayG));
-  set('s-allgain-abs', f.$(dayG),                      gc(dayG));
+  set('s-daygain',     fxFmt(dayG),                      gc(dayG));
+  set('s-daypct',      f.pct(dayPct) + ' vs. yesterday', gc(dayG));
+  set('s-allgain-abs', fxFmt(dayG),                      gc(dayG));
   set('s-allpct',  f.pct(allPct),        gc(allG));
   set('s-cost',    fxFmt(cost));
   set('s-count',   `${S.positions.length} position${S.positions.length !== 1 ? 's' : ''}`);
