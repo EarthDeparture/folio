@@ -614,7 +614,7 @@ async function loadAllPositions() {
       .from('positions').select('symbol,shares').in('folio_id', ids);
     S.allPositions = positions || [];
 
-    // Fetch DB-cached quotes for any symbols not yet in memory
+    // Step 1: DB-cached quotes for symbols not yet in memory
     const missing = [...new Set(S.allPositions.map(p => p.symbol))].filter(s => !S.quotes[s]);
     if (missing.length) {
       const { data: qrows } = await S.db.from('quotes').select('*').in('symbol', missing);
@@ -628,6 +628,18 @@ async function loadAllPositions() {
           dividendYield: r.dividend_yield ?? 0,
         };
       });
+    }
+
+    // Step 2: Live API fetch for any symbols still without a price
+    // (DB cache miss or null price — common for symbols only in non-active portfolios)
+    const needsLive = [...new Set(S.allPositions.map(p => p.symbol))]
+      .filter(s => !(S.quotes[s]?.price > 0));
+    if (needsLive.length) {
+      await Promise.allSettled(
+        needsLive.map(sym =>
+          API._oneQuote(sym).then(q => { if (q) S.quotes[q.symbol] = q; }).catch(() => {})
+        )
+      );
     }
   } catch(e) {
     console.warn('[DIVIDND] loadAllPositions failed:', e.message);
@@ -867,7 +879,7 @@ function renderPositionRow(h, isClassed) {
       <td>
         <div class="sym-cell">
           <div class="sym-badge" style="background:${h.color}1a;border:1px solid ${h.color}33;color:${h.color}">${h.symbol.slice(0,4)}</div>
-          <div class="sym-info"><div class="sym">${h.symbol}</div><div class="name">${h.name}</div></div>
+          <div class="sym-info"><div class="sym">${esc(h.symbol)}</div><div class="name">${esc(h.name)}</div></div>
         </div>
       </td>
       <td class="mono col-shares">${f.num(h.shares, h.shares % 1 === 0 ? 0 : 4)}</td>
